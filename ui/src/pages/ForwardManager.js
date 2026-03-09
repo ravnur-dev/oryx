@@ -354,6 +354,11 @@ function DestCard({dest, stream, onEdit, onDelete, onToggle}) {
         <span style={{...mono, fontSize: 10, color: MUTED}}>
           ID <span style={{color: MUTED}}>{dest.platform}</span>
         </span>
+        {dest.stream && (
+          <span style={{...mono, fontSize: 10, color: MUTED}}>
+            SOURCE <span style={{color: SECOND}}>{dest.stream}</span>
+          </span>
+        )}
         {stream?.start && (
           <span style={{...mono, fontSize: 10, color: MUTED, marginLeft: "auto"}}>
             STARTED <span style={{color: SECOND}}>{new Date(stream.start).toLocaleTimeString()}</span>
