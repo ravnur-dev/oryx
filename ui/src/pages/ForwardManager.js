@@ -385,13 +385,17 @@ function DestCard({dest, stream, onEdit, onDelete, onToggle}) {
 }
 
 // ── Add / Edit Modal ──────────────────────────────────────────────────────────
+const STREAM_NAME_RE = /^[a-zA-Z0-9_-]*$/;
+
 function DestModal({initial, onSave, onClose, saving}) {
   const [form, setForm] = React.useState(initial
-    ? {label: initial.label || "", server: initial.server || "", secret: initial.secret || "", enabled: initial.enabled ?? true}
-    : {label: "", server: "", secret: "", enabled: true}
+    ? {label: initial.label || "", server: initial.server || "", secret: initial.secret || "", stream: initial.stream || "", enabled: initial.enabled ?? true}
+    : {label: "", server: "", secret: "", stream: "", enabled: true}
   );
   const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
-  const valid = form.label.trim() && form.server.trim();
+
+  const streamErr = form.stream.trim() !== "" && !STREAM_NAME_RE.test(form.stream.trim());
+  const valid = form.label.trim() && form.server.trim() && !streamErr;
 
   React.useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();
@@ -404,6 +408,11 @@ function DestModal({initial, onSave, onClose, saving}) {
     {label: "RTMP Server URL",    key: "server", ph: "rtmp://a.rtmp.youtube.com/live2",  type: "url"},
     {label: "Stream Key / Secret",key: "secret", ph: "xxxx-xxxx-xxxx-xxxx",              type: "text"},
   ];
+
+  const handleSave = () => {
+    if (!valid) return;
+    onSave({...form, stream: form.stream.trim()});
+  };
 
   return (
     <div
@@ -449,6 +458,38 @@ function DestModal({initial, onSave, onClose, saving}) {
           </div>
         ))}
 
+        {/* Source stream name — optional */}
+        <div style={{marginBottom: 18}}>
+          <label
+            htmlFor="field-stream"
+            style={{
+              display: "block", ...mono, fontSize: 10, color: MUTED,
+              letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 7,
+            }}>Source Stream Name <span style={{fontWeight: 400, textTransform: "none", letterSpacing: 0}}>— optional</span></label>
+          <input
+            id="field-stream"
+            type="text"
+            maxLength={100}
+            autoComplete="off"
+            spellCheck={false}
+            style={{...inputBase, padding: "9px 12px", borderColor: streamErr ? DANGER : BORDER}}
+            placeholder="e.g. livestream  (blank = most recent active stream)"
+            value={form.stream}
+            onChange={set("stream")}
+            onFocus={e => (e.target.style.borderColor = streamErr ? DANGER : ACCENT)}
+            onBlur={e  => (e.target.style.borderColor = streamErr ? DANGER : BORDER)}
+          />
+          {streamErr ? (
+            <span style={{...mono, fontSize: 10, color: DANGER, marginTop: 5, display: "block"}}>
+              Only letters, numbers, hyphens and underscores are allowed.
+            </span>
+          ) : (
+            <span style={{...mono, fontSize: 10, color: MUTED, marginTop: 5, display: "block"}}>
+              If set, this destination will only forward this stream name. Leave blank to forward the most recently active stream.
+            </span>
+          )}
+        </div>
+
         <div style={{display: "flex", alignItems: "center", gap: 10, marginBottom: 28}}>
           <Toggle
             value={form.enabled}
@@ -462,7 +503,7 @@ function DestModal({initial, onSave, onClose, saving}) {
 
         <div style={{display: "flex", gap: 10, justifyContent: "flex-end"}}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" disabled={!valid || saving} onClick={() => valid && onSave(form)}>
+          <Btn variant="primary" disabled={!valid || saving} onClick={handleSave}>
             {saving ? "Saving…" : "Save Destination"}
           </Btn>
         </div>

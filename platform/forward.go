@@ -90,6 +90,9 @@ func (v *ForwardWorker) Handle(ctx context.Context, handler *http.ServeMux) erro
 					if userConf.Server == "" && userConf.Secret == "" {
 						return errors.New("no secret")
 					}
+					if userConf.Stream != "" && (len(userConf.Stream) > 100 || !isValidPlatformKey(userConf.Stream)) {
+						return errors.Errorf("invalid stream=%v, must be alphanumeric with hyphens or underscores, max 100 chars", userConf.Stream)
+					}
 				}
 			}
 
