@@ -17,7 +17,7 @@ export default function Forbidden() {
     // Sign out of MSAL so the user can try a different account.
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length > 0) {
-      msalInstance.logoutPopup({account: accounts[0]}).catch(() => {});
+      msalInstance.logoutPopup({account: accounts[0], postLogoutRedirectUri: window.location.origin + '/blank.html'}).catch(() => {});
     }
     navigate('/routers-login');
   };
