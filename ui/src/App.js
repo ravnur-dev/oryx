@@ -38,6 +38,7 @@ import Popouts from "./pages/Popouts";
 import Users from "./pages/Users";
 import Forbidden from "./pages/Forbidden";
 import ForwardManager from "./pages/ForwardManager";
+import Streams from "./pages/Streams";
 
 function App() {
   const [env, setEnv] = React.useState(null);
@@ -147,6 +148,7 @@ function AppRoute({initialized, setInitialized}) {
                 <Route path="*" element={<Login onLogin={() => setTokenUpdated(!tokenUpdated)}/>}/>
                 <Route path="routers-login" element={<Login onLogin={() => setTokenUpdated(!tokenUpdated)}/>}/>
                 <Route path="routers-forward" element={<ForwardManager/>}/>
+                <Route path="routers-streams" element={<Streams/>}/>
                 <Route path="routers-logout" element={<Logout onLogout={() => setTokenUpdated(!tokenUpdated)}/>}/>
                 <Route path="routers-forbidden" element={<Forbidden/>}/>
                 <Route path="routers-scenario" element={<RequireOwner><Scenario/></RequireOwner>}/>
