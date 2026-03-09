@@ -68,8 +68,7 @@ func (v *ForwardWorker) Handle(ctx context.Context, handler *http.ServeMux) erro
 				return errors.Wrapf(err, "authenticate")
 			}
 
-			allowedActions := []string{"update"}
-			allowedPlatforms := []string{"wx", "bilibili", "kuaishou"}
+			allowedActions := []string{"update", "delete"}
 			if action != "" {
 				if !slicesContains(allowedActions, action) {
 					return errors.Errorf("invalid action=%v", action)
@@ -79,20 +78,42 @@ func (v *ForwardWorker) Handle(ctx context.Context, handler *http.ServeMux) erro
 					return errors.New("no platform")
 				}
 
-				// Platform should be specified platforms, or starts with forwarding-.
-				if !slicesContains(allowedPlatforms, userConf.Platform) && !strings.Contains(userConf.Platform, "forwarding-") {
-					return errors.Errorf("invalid platform=%v", userConf.Platform)
+				// Platform key must be alphanumeric with hyphens or underscores, max 64 chars.
+				if len(userConf.Platform) > 64 || !isValidPlatformKey(userConf.Platform) {
+					return errors.Errorf("invalid platform=%v, must be alphanumeric with hyphens or underscores", userConf.Platform)
 				}
 
-				if userConf.Server == "" {
-					return errors.New("no server")
-				}
-				if userConf.Server == "" && userConf.Secret == "" {
-					return errors.New("no secret")
+				if action == "update" {
+					if userConf.Server == "" {
+						return errors.New("no server")
+					}
+					if userConf.Server == "" && userConf.Secret == "" {
+						return errors.New("no secret")
+					}
 				}
 			}
 
-			if action == "update" {
+			if action == "delete" {
+				// Remove config from Redis first so the background loadTasks loop won't recreate it.
+				if err := rdb.HDel(ctx, SRS_FORWARD_CONFIG, userConf.Platform).Err(); err != nil && err != redis.Nil {
+					return errors.Wrapf(err, "hdel %v %v", SRS_FORWARD_CONFIG, userConf.Platform)
+				}
+
+				// Stop and clean up the in-memory task if it is running.
+				if task := v.GetTask(userConf.Platform); task != nil {
+					taskUUID := task.UUID
+					task.Stop()
+					v.tasks.Delete(userConf.Platform)
+
+					if err := rdb.HDel(ctx, SRS_FORWARD_TASK, taskUUID).Err(); err != nil && err != redis.Nil {
+						return errors.Wrapf(err, "hdel %v %v", SRS_FORWARD_TASK, taskUUID)
+					}
+				}
+
+				ohttp.WriteData(ctx, w, r, nil)
+				logger.Tf(ctx, "Forward delete platform=%v ok, token=%vB", userConf.Platform, len(token))
+				return nil
+			} else if action == "update" {
 				var targetConf ForwardConfigure
 				if config, err := rdb.HGet(ctx, SRS_FORWARD_CONFIG, userConf.Platform).Result(); err != nil && err != redis.Nil {
 					return errors.Wrapf(err, "hget %v %v", SRS_FORWARD_CONFIG, userConf.Platform)
@@ -439,6 +460,18 @@ func (v *ForwardTask) cleanup(ctx context.Context) error {
 	return nil
 }
 
+// Stop cancels the task context, causing the running FFmpeg process to be killed.
+// It does not remove the task from Redis or the worker map; callers are responsible for that.
+func (v *ForwardTask) Stop() {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	if v.cancel != nil {
+		v.cancel()
+		v.cancel = nil
+	}
+}
+
 func (v *ForwardTask) Restart(ctx context.Context) error {
 	v.lock.Lock()
 	defer v.lock.Unlock()
@@ -718,4 +751,16 @@ func (v *ForwardTask) doForward(ctx context.Context, input *SrsStream) error {
 	)
 
 	return err
+}
+
+// isValidPlatformKey returns true if s contains only alphanumeric characters,
+// hyphens, or underscores. This allows user-defined platform keys while
+// preventing injection or Redis key collisions.
+func isValidPlatformKey(s string) bool {
+	for _, c := range s {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
 }

@@ -320,7 +320,17 @@ const (
 	SRS_HOOKS           = "SRS_HOOKS"
 	SRS_SYS_LIMITS      = "SRS_SYS_LIMITS"
 	SRS_SYS_OPENAI      = "SRS_SYS_OPENAI"
+	// For simulcasting user management.
+	SIMULCAST_USERS = "SIMULCAST_USERS"
 )
+
+func envEntraTenantID() string {
+	return os.Getenv("ENTRA_TENANT_ID")
+}
+
+func envEntraClientID() string {
+	return os.Getenv("ENTRA_CLIENT_ID")
+}
 
 // GenerateRoomPublishKey to build the redis hashset key from room stream name.
 func GenerateRoomPublishKey(roomStreamName string) string {

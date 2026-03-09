@@ -8,6 +8,7 @@ import React from "react";
 import {useNavigate} from "react-router-dom";
 import {Token} from "../utils";
 import {useTranslation} from "react-i18next";
+import {msalInstance} from "../msalInstance";
 
 export default function Logout({onLogout}) {
   const navigate = useNavigate();
@@ -17,6 +18,11 @@ export default function Logout({onLogout}) {
     if (window.confirm(t('nav.logout2'))) {
       Token.remove();
       onLogout && onLogout();
+      // Also sign out of Microsoft so the user is prompted to choose an account next time.
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.logoutPopup({account: accounts[0]}).catch(() => {});
+      }
     }
 
     navigate('/routers-login');

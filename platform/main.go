@@ -128,7 +128,7 @@ func doMain(ctx context.Context) error {
 	setEnvDefault("RTC_PORT", "8000")
 
 	// For system limit.
-	setEnvDefault("SRS_FORWARD_LIMIT", "10")
+	setEnvDefault("SRS_FORWARD_LIMIT", "20")
 	setEnvDefault("SRS_VLIVE_LIMIT", "10")
 	setEnvDefault("SRS_CAMERA_LIMIT", "10")
 
@@ -250,6 +250,10 @@ func doMain(ctx context.Context) error {
 	if err := vodWorker.Start(ctx); err != nil {
 		return errors.Wrapf(err, "start vod worker")
 	}
+
+	// Create managers for simulcast users and Entra authentication.
+	userManager = NewUserManager()
+	entraAuth = NewEntraAuth()
 
 	// Create worker for forwarding.
 	forwardWorker = NewForwardWorker()
