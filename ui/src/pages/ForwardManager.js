@@ -5,6 +5,7 @@
 //
 import React from "react";
 import axios from "axios";
+import {Link, useLocation} from "react-router-dom";
 import {Token} from "../utils";
 import {SrsErrorBoundary} from "../components/SrsErrorBoundary";
 
@@ -137,6 +138,67 @@ function Stats({log}) {
   );
 }
 
+// ── Nav + action bar ─────────────────────────────────────────────────────────
+const ALL_NAV_ITEMS = [
+  {to: '/routers-forward',    text: 'Forward'},
+  {to: '/routers-scenario',   text: 'Scenario',   ownerOnly: true},
+  {to: '/routers-settings',   text: 'System',     ownerOnly: true},
+  {to: '/routers-components', text: 'Components', ownerOnly: true},
+  {to: '/routers-contact',    text: 'Contact',    ownerOnly: true},
+  {to: '/routers-users',      text: 'Users',      ownerOnly: true},
+  {to: '/routers-logout',     text: 'Logout'},
+];
+
+function NavBar({lastRefresh, onRefresh, onAdd}) {
+  const location = useLocation();
+  const user = Token.loadUser();
+  const isOwner = !user || user.role === 'owner';
+  const items = ALL_NAV_ITEMS.filter(e => !e.ownerOnly || isOwner);
+
+  return (
+    <div style={{
+      background: CARD, borderBottom: `1px solid ${BORDER}`,
+      padding: "0 32px", display: "flex", alignItems: "stretch",
+      justifyContent: "space-between",
+      boxShadow: "0 1px 0 rgba(0,0,0,0.06)",
+    }}>
+      <nav style={{display: "flex", alignItems: "stretch", gap: 2}}>
+        {items.map(item => {
+          const active = location.pathname.includes(item.to);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              style={{
+                ...syne, fontSize: 12, fontWeight: active ? 700 : 500,
+                color: active ? ACCENT : SECOND,
+                textDecoration: "none",
+                padding: "14px 14px 12px",
+                borderBottom: active ? `2px solid ${ACCENT}` : "2px solid transparent",
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.color = HEADING; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color = SECOND; }}
+            >
+              {item.text}
+            </Link>
+          );
+        })}
+      </nav>
+      <div style={{display: "flex", alignItems: "center", gap: 12, paddingLeft: 16}}>
+        {lastRefresh && (
+          <span aria-live="polite" style={{...mono, fontSize: 10, color: MUTED}}>
+            ↺ {lastRefresh.toLocaleTimeString()}
+          </span>
+        )}
+        <Btn variant="dim" onClick={onRefresh}>Refresh</Btn>
+        <Btn variant="primary" onClick={onAdd}>+ Add Destination</Btn>
+      </div>
+    </div>
+  );
+}
+
 // ── Search + Filter bar ───────────────────────────────────────────────────────
 const FILTER_STATUS  = ["ALL", "LIVE", "IDLE"];
 const FILTER_ENABLED = ["ALL", "ENABLED", "DISABLED"];
@@ -150,14 +212,14 @@ const pillStyle = (active) => ({
   borderColor: active ? ACCENT       : BORDER,
 });
 
-function SearchFilterBar({query, setQuery, total, shown}) {
+function SearchFilterBar({query, setQuery, statusFilter, setStatusFilter, enabledFilter, setEnabledFilter, total, shown}) {
   return (
     <div style={{
       background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 8,
-      padding: "10px 16px", marginBottom: 20,
-      display: "flex", alignItems: "center", gap: 12,
+      padding: "14px 20px", marginBottom: 20,
+      display: "flex", flexDirection: "column", gap: 12,
     }}>
-      <div style={{position: "relative", flex: 1}}>
+      <div style={{position: "relative"}}>
         <span aria-hidden="true" style={{
           position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
           ...mono, fontSize: 14, color: MUTED, pointerEvents: "none", lineHeight: 1,
@@ -183,11 +245,30 @@ function SearchFilterBar({query, setQuery, total, shown}) {
             }}>✕</button>
         )}
       </div>
-      <div style={{...mono, fontSize: 11, color: MUTED, flexShrink: 0}}>
-        {shown < total
-          ? <><span style={{color: ACCENT}}>{shown}</span> / {total} destinations</>
-          : <><span style={{color: ACCENT}}>{total}</span> destinations</>
-        }
+
+      <div style={{display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap"}}>
+        <div role="group" aria-label="Filter by stream status" style={{display: "flex", alignItems: "center", gap: 6}}>
+          <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATUS</span>
+          {FILTER_STATUS.map(f => (
+            <button key={f} onClick={() => setStatusFilter(f)} aria-pressed={statusFilter === f} style={pillStyle(statusFilter === f)}>{f}</button>
+          ))}
+        </div>
+
+        <div aria-hidden="true" style={{width: 1, height: 20, background: BORDER}}/>
+
+        <div role="group" aria-label="Filter by enabled state" style={{display: "flex", alignItems: "center", gap: 6}}>
+          <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATE</span>
+          {FILTER_ENABLED.map(f => (
+            <button key={f} onClick={() => setEnabledFilter(f)} aria-pressed={enabledFilter === f} style={pillStyle(enabledFilter === f)}>{f}</button>
+          ))}
+        </div>
+
+        <div style={{marginLeft: "auto", ...mono, fontSize: 11, color: MUTED}}>
+          {shown < total
+            ? <><span style={{color: ACCENT}}>{shown}</span> / {total} destinations</>
+            : <><span style={{color: ACCENT}}>{total}</span> destinations</>
+          }
+        </div>
       </div>
     </div>
   );
@@ -490,38 +571,8 @@ function ForwardManagerImpl() {
   return (
     <div style={{background: BG, color: BODY, ...syne}}>
 
-      {/* ── Control bar: filters + actions ── */}
-      <div style={{
-        background: CARD, borderBottom: `1px solid ${BORDER}`,
-        padding: "12px 32px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: 12,
-        boxShadow: "0 1px 0 rgba(0,0,0,0.06)",
-      }}>
-        <div style={{display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap"}}>
-          <div role="group" aria-label="Filter by stream status" style={{display: "flex", alignItems: "center", gap: 6}}>
-            <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATUS</span>
-            {FILTER_STATUS.map(f => (
-              <button key={f} onClick={() => setStatusFilter(f)} aria-pressed={statusFilter === f} style={pillStyle(statusFilter === f)}>{f}</button>
-            ))}
-          </div>
-          <div aria-hidden="true" style={{width: 1, height: 20, background: BORDER}}/>
-          <div role="group" aria-label="Filter by enabled state" style={{display: "flex", alignItems: "center", gap: 6}}>
-            <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATE</span>
-            {FILTER_ENABLED.map(f => (
-              <button key={f} onClick={() => setEnabledFilter(f)} aria-pressed={enabledFilter === f} style={pillStyle(enabledFilter === f)}>{f}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{display: "flex", alignItems: "center", gap: 12}}>
-          {lastRefresh && (
-            <span aria-live="polite" style={{...mono, fontSize: 10, color: MUTED}}>
-              ↺ {lastRefresh.toLocaleTimeString()}
-            </span>
-          )}
-          <Btn variant="dim" onClick={() => refresh(true)}>Refresh</Btn>
-          <Btn variant="primary" onClick={() => setModal({mode: "add"})}>+ Add Destination</Btn>
-        </div>
-      </div>
+      {/* ── Nav + action bar ── */}
+      <NavBar lastRefresh={lastRefresh} onRefresh={() => refresh(true)} onAdd={() => setModal({mode: "add"})}/>
 
       {/* ── Stats bar ── */}
       <div style={{background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "9px 32px", display: "flex", gap: 28}}>
@@ -558,8 +609,10 @@ function ForwardManagerImpl() {
         ) : (
           <>
             <SearchFilterBar
-              query={query}           setQuery={setQuery}
-              total={destList.length} shown={filtered.length}
+              query={query}                 setQuery={setQuery}
+              statusFilter={statusFilter}   setStatusFilter={setStatusFilter}
+              enabledFilter={enabledFilter} setEnabledFilter={setEnabledFilter}
+              total={destList.length}       shown={filtered.length}
             />
             {filtered.length === 0 ? (
               <EmptyState filtered={isFiltered} onAdd={() => setModal({mode: "add"})} onClear={clearFilters}/>

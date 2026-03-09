@@ -127,7 +127,7 @@ function AppRoute({initialized, setInitialized}) {
 
   return (
     <>
-      {isPopout === -1 && <Navigator {...{initialized, token}} />}
+      {isPopout === -1 && <Navigator />}
       <Routes>
         {initialized === 0 ?
           <React.Fragment>
