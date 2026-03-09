@@ -6,13 +6,14 @@
 import React from 'react';
 import Container from "react-bootstrap/Container";
 import {Navbar} from 'react-bootstrap';
+import {Link} from 'react-router-dom';
 import logo from '../resources/ravnur-logo.svg';
 
 export default function Navigator() {
   return (<>
     <Navbar>
       <Container fluid>
-        <Navbar.Brand style={{display: 'flex', alignItems: 'center', gap: 10}}>
+        <Navbar.Brand as={Link} to="/routers-forward" style={{display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none'}}>
           <img
             src={logo}
             height="36"
