@@ -242,6 +242,15 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
   const startMs = stream.update ? new Date(stream.update).getTime() : null;
   const elapsedMs = startMs ? Math.max(0, Date.now() - startMs) : null;
 
+  const v = srsStats?.video;
+  const a = srsStats?.audio;
+  const videoInfo = v?.codec ? [
+    v.codec,
+    (v.width && v.height) ? `${v.width}×${v.height}` : null,
+    (v.profile && v.level) ? `${v.profile} ${v.level}` : null,
+  ].filter(Boolean).join("  ") : null;
+  const audioInfo = a?.codec || null;
+
   return (
     <article style={{
       background: CARD,
@@ -325,7 +334,7 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
       </div>
 
       {/* Stats row — active streams only */}
-      {active && (fps || bitrate || elapsedMs) && (
+      {active && (fps || bitrate || elapsedMs || videoInfo || audioInfo) && (
         <div style={{display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10}}>
           {fps && (
             <span style={{
@@ -352,6 +361,24 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
               padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
             }}>
               <span style={{color: MUTED, marginRight: 5}}>UPTIME</span>{formatUptime(elapsedMs)}
+            </span>
+          )}
+          {videoInfo && (
+            <span style={{
+              ...mono, fontSize: 10, color: ACCENT,
+              background: "rgba(181,65,0,0.06)", border: "1px solid rgba(181,65,0,0.2)",
+              padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
+            }}>
+              <span style={{color: MUTED, marginRight: 5}}>VIDEO</span>{videoInfo}
+            </span>
+          )}
+          {audioInfo && (
+            <span style={{
+              ...mono, fontSize: 10, color: ACCENT,
+              background: "rgba(181,65,0,0.06)", border: "1px solid rgba(181,65,0,0.2)",
+              padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
+            }}>
+              <span style={{color: MUTED, marginRight: 5}}>AUDIO</span>{audioInfo}
             </span>
           )}
         </div>
