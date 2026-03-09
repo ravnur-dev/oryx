@@ -7,7 +7,7 @@ import React from 'react';
 import Container from "react-bootstrap/Container";
 import {Navbar, Nav} from 'react-bootstrap';
 import {Link, useLocation} from "react-router-dom";
-import logo from '../resources/logo.svg';
+import logo from '../resources/ravnur-logo.svg';
 import {useTranslation} from "react-i18next";
 import {Token} from "../utils";
 
@@ -54,10 +54,10 @@ export default function Navigator({initialized, token}) {
         <Navbar.Brand>
           <img
             src={logo}
-            width="64"
-            height="30"
-            className="d-inline-block align-top"
-            alt="Oryx"
+            height="36"
+            style={{width: 'auto'}}
+            className="d-inline-block align-middle"
+            alt="Ravnur"
           />
         </Navbar.Brand>
         <Nav className='me-auto' variant="pills" activeKey={activekey}>
