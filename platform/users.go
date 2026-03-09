@@ -85,10 +85,10 @@ func (v *UserManager) Handle(ctx context.Context, handler *http.ServeMux) error 
 				if err != nil && err != redis.Nil {
 					return errors.Wrapf(err, "hlen %v", SIMULCAST_USERS)
 				}
-				if count > 0 {
-					if callerEmail == "" {
-						return errors.New("callerEmail is required")
-					}
+				// If callerEmail is provided (Entra flow), enforce owner role.
+				// If empty, the caller authenticated via admin password (bearer token),
+				// which already implies full access - no additional role check needed.
+				if count > 0 && callerEmail != "" {
 					callerRole, err := v.getUserRole(ctx, callerEmail)
 					if err != nil {
 						return errors.Wrapf(err, "get caller role for %v", callerEmail)
