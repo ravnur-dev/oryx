@@ -146,14 +146,14 @@ function AppRoute({initialized, setInitialized}) {
               {initialized === 1 && token && <>
                 <Route path="*" element={<Login onLogin={() => setTokenUpdated(!tokenUpdated)}/>}/>
                 <Route path="routers-login" element={<Login onLogin={() => setTokenUpdated(!tokenUpdated)}/>}/>
-                <Route path="routers-scenario" element={<Scenario/>}/>
-                <Route path="routers-settings" element={<Settings/>}/>
-                <Route path="routers-contact" element={<Contact/>}/>
-                <Route path="routers-components" element={<Components/>}/>
                 <Route path="routers-forward" element={<ForwardManager/>}/>
-                <Route path="routers-users" element={<Users/>}/>
-                <Route path="routers-forbidden" element={<Forbidden/>}/>
                 <Route path="routers-logout" element={<Logout onLogout={() => setTokenUpdated(!tokenUpdated)}/>}/>
+                <Route path="routers-forbidden" element={<Forbidden/>}/>
+                <Route path="routers-scenario" element={<RequireOwner><Scenario/></RequireOwner>}/>
+                <Route path="routers-settings" element={<RequireOwner><Settings/></RequireOwner>}/>
+                <Route path="routers-contact" element={<RequireOwner><Contact/></RequireOwner>}/>
+                <Route path="routers-components" element={<RequireOwner><Components/></RequireOwner>}/>
+                <Route path="routers-users" element={<RequireOwner><Users/></RequireOwner>}/>
               </>}
               {initialized === 1 && <Route path="routers-popout" element={<Popouts/>}/>}
             </Route>
@@ -162,6 +162,21 @@ function AppRoute({initialized, setInitialized}) {
       {isPopout === -1 && <Footer/> }
     </>
   );
+}
+
+// Redirects editors away from owner-only routes.
+// null user = admin password login = owner-level access.
+function RequireOwner({children}) {
+  const navigate = useNavigate();
+  const user = Token.loadUser();
+  const isOwner = !user || user.role === 'owner';
+
+  React.useEffect(() => {
+    if (!isOwner) navigate('/routers-forward');
+  }, [isOwner, navigate]);
+
+  if (!isOwner) return null;
+  return children;
 }
 
 function AppLocale() {

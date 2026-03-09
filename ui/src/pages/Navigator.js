@@ -10,6 +10,7 @@ import {Link, useLocation} from "react-router-dom";
 import logo from '../resources/logo.svg';
 import LanguageSwitch from "../components/LanguageSwitch";
 import {useTranslation} from "react-i18next";
+import {Token} from "../utils";
 
 export default function Navigator({initialized, token, localChanged}) {
   const [activekey, setActiveKey] = React.useState(1);
@@ -24,16 +25,22 @@ export default function Navigator({initialized, token, localChanged}) {
       return setNavs([{to:'/routers-login', text: t('nav.login'), className: 'text-light'}]);
     }
 
+    // null user means admin password login — treat as owner.
+    const user = Token.loadUser();
+    const isOwner = !user || user.role === 'owner';
+
     const r0 = `${location.pathname}${location.search}`;
-    setNavs([
+    const allNavs = [
       {eventKey: '8', to: '/routers-forward', text: 'Forward'},
-      {eventKey: '2', to: '/routers-scenario', text: t('nav.scenario')},
-      {eventKey: '3', to: '/routers-settings', text: t('nav.system')},
-      {eventKey: '4', to: '/routers-components', text: t('nav.component')},
-      {eventKey: '5', to: '/routers-contact', text: t('nav.contact')},
-      {eventKey: '7', to: '/routers-users', text: 'Users'},
+      {eventKey: '2', to: '/routers-scenario', text: t('nav.scenario'), ownerOnly: true},
+      {eventKey: '3', to: '/routers-settings', text: t('nav.system'), ownerOnly: true},
+      {eventKey: '4', to: '/routers-components', text: t('nav.component'), ownerOnly: true},
+      {eventKey: '5', to: '/routers-contact', text: t('nav.contact'), ownerOnly: true},
+      {eventKey: '7', to: '/routers-users', text: 'Users', ownerOnly: true},
       {eventKey: '6', to: '/routers-logout', text: t('nav.logout')},
-    ].map(e => {
+    ];
+
+    setNavs(allNavs.filter(e => !e.ownerOnly || isOwner).map(e => {
       if (r0.indexOf(e.to) >= 0) {
         e.className = 'text-light';
         setActiveKey(e.eventKey);
