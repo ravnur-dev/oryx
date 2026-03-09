@@ -236,6 +236,7 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
   const name = stream.stream; // without "live/" prefix
   const desc = loadDesc(name);
 
+  const fps     = srsStats?.video?.fps;
   const bitrate = srsStats?.kbps?.recv_30s;
   const uptimeMs = srsStats?.live_ms;
 
@@ -322,8 +323,17 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
       </div>
 
       {/* Stats row — active streams only */}
-      {active && (bitrate || uptimeMs) && (
+      {active && (fps || bitrate || uptimeMs) && (
         <div style={{display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10}}>
+          {fps && (
+            <span style={{
+              ...mono, fontSize: 10, color: ACCENT,
+              background: "rgba(181,65,0,0.06)", border: "1px solid rgba(181,65,0,0.2)",
+              padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
+            }}>
+              <span style={{color: MUTED, marginRight: 5}}>FPS</span>{fps}
+            </span>
+          )}
           {bitrate && (
             <span style={{
               ...mono, fontSize: 10, color: ACCENT,
@@ -339,7 +349,7 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
               background: "rgba(181,65,0,0.06)", border: "1px solid rgba(181,65,0,0.2)",
               padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
             }}>
-              <span style={{color: MUTED, marginRight: 5}}>UPTIME</span>{formatUptime(uptimeMs)}
+              <span style={{color: MUTED, marginRight: 5}}>UPTIME</span>{formatUptime(Date.now() - uptimeMs)}
             </span>
           )}
         </div>
@@ -412,6 +422,7 @@ function PreviewModal({stream, onClose}) {
             width: "100%", height: 260, border: `1px solid ${BORDER}`,
             borderRadius: 6, display: "block", background: "#000",
           }}
+          scrolling="no"
           allowFullScreen
         />
         <div style={{...mono, fontSize: 10, color: MUTED, marginTop: 10, wordBreak: "break-all"}}>
