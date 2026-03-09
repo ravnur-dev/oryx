@@ -354,9 +354,9 @@ function DestCard({dest, stream, onEdit, onDelete, onToggle}) {
         <span style={{...mono, fontSize: 10, color: MUTED}}>
           ID <span style={{color: MUTED}}>{dest.platform}</span>
         </span>
-        {dest.stream && (
+        {(stream?.stream || dest.stream) && (
           <span style={{...mono, fontSize: 10, color: MUTED}}>
-            SOURCE <span style={{color: SECOND}}>{dest.stream}</span>
+            SOURCE <span style={{color: SECOND}}>{stream?.stream || dest.stream}</span>
           </span>
         )}
         {stream?.start && (
