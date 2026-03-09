@@ -238,8 +238,9 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
 
   const fps     = computedFps;
   const bitrate = srsStats?.kbps?.recv_30s;
-  const uptimeMs = srsStats?.live_ms;
-  const elapsedMs = uptimeMs ? Math.max(0, Date.now() - uptimeMs) : null;
+  // stream.update is set by the platform when the stream publishes (RFC3339)
+  const startMs = stream.update ? new Date(stream.update).getTime() : null;
+  const elapsedMs = startMs ? Math.max(0, Date.now() - startMs) : null;
 
   return (
     <article style={{
