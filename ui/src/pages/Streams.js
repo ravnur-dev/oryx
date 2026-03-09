@@ -232,13 +232,14 @@ function SearchFilterBar({query, setQuery, statusFilter, setStatusFilter, total,
 // ── Stream Card ───────────────────────────────────────────────────────────────
 function StreamCard({entry, onReset, onPreview, onEdit}) {
   const [confirmReset, setConfirmReset] = React.useState(false);
-  const {stream, active, srsStats} = entry;
+  const {stream, active, srsStats, computedFps} = entry;
   const name = stream.stream; // without "live/" prefix
   const desc = loadDesc(name);
 
-  const fps     = srsStats?.video?.fps;
+  const fps     = computedFps;
   const bitrate = srsStats?.kbps?.recv_30s;
   const uptimeMs = srsStats?.live_ms;
+  const elapsedMs = uptimeMs ? Math.max(0, Date.now() - uptimeMs) : null;
 
   return (
     <article style={{
@@ -323,7 +324,7 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
       </div>
 
       {/* Stats row — active streams only */}
-      {active && (fps || bitrate || uptimeMs) && (
+      {active && (fps || bitrate || elapsedMs) && (
         <div style={{display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10}}>
           {fps && (
             <span style={{
@@ -343,13 +344,13 @@ function StreamCard({entry, onReset, onPreview, onEdit}) {
               <span style={{color: MUTED, marginRight: 5}}>BITRATE</span>{bitrate} kbps
             </span>
           )}
-          {uptimeMs && (
+          {elapsedMs != null && (
             <span style={{
               ...mono, fontSize: 10, color: ACCENT,
               background: "rgba(181,65,0,0.06)", border: "1px solid rgba(181,65,0,0.2)",
               padding: "2px 8px", borderRadius: 3, letterSpacing: "0.06em",
             }}>
-              <span style={{color: MUTED, marginRight: 5}}>UPTIME</span>{formatUptime(Date.now() - uptimeMs)}
+              <span style={{color: MUTED, marginRight: 5}}>UPTIME</span>{formatUptime(elapsedMs)}
             </span>
           )}
         </div>
@@ -568,6 +569,7 @@ function StreamsImpl() {
         }
       }
 
+      const now = Date.now();
       setHistory(prev => {
         const next = new Map(prev);
 
@@ -580,7 +582,19 @@ function StreamsImpl() {
         for (const s of activeStreams) {
           const key = `${s.app}/${s.stream}`;
           const srsStats = srsMap[`${s.app}/${s.stream}`] || null;
-          next.set(key, {stream: s, active: true, srsStats});
+          const prevEntry = prev.get(key);
+
+          // Compute FPS from frame-count delta between polls
+          let computedFps = prevEntry?.computedFps ?? null;
+          if (srsStats?.frames != null && prevEntry?.srsStats?.frames != null && prevEntry?.lastPollTime != null) {
+            const deltaFrames = srsStats.frames - prevEntry.srsStats.frames;
+            const deltaSec = (now - prevEntry.lastPollTime) / 1000;
+            if (deltaSec > 0 && deltaFrames >= 0) {
+              computedFps = Math.round(deltaFrames / deltaSec);
+            }
+          }
+
+          next.set(key, {stream: s, active: true, srsStats, computedFps, lastPollTime: now});
         }
 
         return next;
