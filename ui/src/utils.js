@@ -37,6 +37,11 @@ export const Token = {
   remove: () => {
     localStorage.removeItem(SRS_TERRAFORM_TOKEN);
   },
+  loadUser: () => {
+    const info = localStorage.getItem(SRS_TERRAFORM_TOKEN);
+    const o = JSON.parse(info || '{}');
+    return o?.user || null;
+  },
 };
 
 export const Locale = {

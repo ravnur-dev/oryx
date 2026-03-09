@@ -67,6 +67,7 @@ export default function Users() {
     const payload = {
       action: editingId ? 'update' : 'create',
       ...(editingId ? {id: editingId} : {}),
+      callerEmail: Token.loadUser()?.email || '',
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
@@ -87,6 +88,7 @@ export default function Users() {
     axios.post('/terraform/v1/mgmt/users', {
       action: 'delete',
       id: user.id,
+      callerEmail: Token.loadUser()?.email || '',
     }, {
       headers: Token.loadBearerHeader(),
     }).then(() => {
