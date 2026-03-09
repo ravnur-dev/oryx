@@ -141,23 +141,23 @@ function Stats({log}) {
 const FILTER_STATUS  = ["ALL", "LIVE", "IDLE"];
 const FILTER_ENABLED = ["ALL", "ENABLED", "DISABLED"];
 
-function SearchFilterBar({query, setQuery, statusFilter, setStatusFilter, enabledFilter, setEnabledFilter, total, shown}) {
-  const pillStyle = (active) => ({
-    ...syne, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
-    padding: "4px 12px", borderRadius: 3, cursor: "pointer", border: "1.5px solid",
-    transition: "all 0.15s",
-    background:  active ? ACCENT       : "transparent",
-    color:       active ? "#ffffff"    : SECOND,
-    borderColor: active ? ACCENT       : BORDER,
-  });
+const pillStyle = (active) => ({
+  ...{fontFamily: "'Public Sans', sans-serif"}, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
+  padding: "4px 12px", borderRadius: 3, cursor: "pointer", border: "1.5px solid",
+  transition: "all 0.15s",
+  background:  active ? ACCENT       : "transparent",
+  color:       active ? "#ffffff"    : SECOND,
+  borderColor: active ? ACCENT       : BORDER,
+});
 
+function SearchFilterBar({query, setQuery, total, shown}) {
   return (
     <div style={{
       background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 8,
-      padding: "14px 20px", marginBottom: 20,
-      display: "flex", flexDirection: "column", gap: 12,
+      padding: "10px 16px", marginBottom: 20,
+      display: "flex", alignItems: "center", gap: 12,
     }}>
-      <div style={{position: "relative"}}>
+      <div style={{position: "relative", flex: 1}}>
         <span aria-hidden="true" style={{
           position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
           ...mono, fontSize: 14, color: MUTED, pointerEvents: "none", lineHeight: 1,
@@ -183,30 +183,11 @@ function SearchFilterBar({query, setQuery, statusFilter, setStatusFilter, enable
             }}>✕</button>
         )}
       </div>
-
-      <div style={{display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap"}}>
-        <div role="group" aria-label="Filter by stream status" style={{display: "flex", alignItems: "center", gap: 6}}>
-          <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATUS</span>
-          {FILTER_STATUS.map(f => (
-            <button key={f} onClick={() => setStatusFilter(f)} aria-pressed={statusFilter === f} style={pillStyle(statusFilter === f)}>{f}</button>
-          ))}
-        </div>
-
-        <div aria-hidden="true" style={{width: 1, height: 20, background: BORDER}}/>
-
-        <div role="group" aria-label="Filter by enabled state" style={{display: "flex", alignItems: "center", gap: 6}}>
-          <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATE</span>
-          {FILTER_ENABLED.map(f => (
-            <button key={f} onClick={() => setEnabledFilter(f)} aria-pressed={enabledFilter === f} style={pillStyle(enabledFilter === f)}>{f}</button>
-          ))}
-        </div>
-
-        <div style={{marginLeft: "auto", ...mono, fontSize: 11, color: MUTED}}>
-          {shown < total
-            ? <><span style={{color: ACCENT}}>{shown}</span> / {total} destinations</>
-            : <><span style={{color: ACCENT}}>{total}</span> destinations</>
-          }
-        </div>
+      <div style={{...mono, fontSize: 11, color: MUTED, flexShrink: 0}}>
+        {shown < total
+          ? <><span style={{color: ACCENT}}>{shown}</span> / {total} destinations</>
+          : <><span style={{color: ACCENT}}>{total}</span> destinations</>
+        }
       </div>
     </div>
   );
@@ -509,16 +490,27 @@ function ForwardManagerImpl() {
   return (
     <div style={{background: BG, color: BODY, ...syne}}>
 
-      {/* ── Page header ── */}
+      {/* ── Control bar: filters + actions ── */}
       <div style={{
         background: CARD, borderBottom: `1px solid ${BORDER}`,
-        padding: "16px 32px", display: "flex", alignItems: "center",
-        justifyContent: "space-between",
+        padding: "12px 32px", display: "flex", alignItems: "center",
+        justifyContent: "space-between", flexWrap: "wrap", gap: 12,
         boxShadow: "0 1px 0 rgba(0,0,0,0.06)",
       }}>
-        <div>
-          <div style={{fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em", color: HEADING}}>FORWARD</div>
-          <div style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em"}}>RAVNUR SIMULCAST MANAGER</div>
+        <div style={{display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap"}}>
+          <div role="group" aria-label="Filter by stream status" style={{display: "flex", alignItems: "center", gap: 6}}>
+            <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATUS</span>
+            {FILTER_STATUS.map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)} aria-pressed={statusFilter === f} style={pillStyle(statusFilter === f)}>{f}</button>
+            ))}
+          </div>
+          <div aria-hidden="true" style={{width: 1, height: 20, background: BORDER}}/>
+          <div role="group" aria-label="Filter by enabled state" style={{display: "flex", alignItems: "center", gap: 6}}>
+            <span style={{...mono, fontSize: 10, color: MUTED, letterSpacing: "0.1em", marginRight: 2}}>STATE</span>
+            {FILTER_ENABLED.map(f => (
+              <button key={f} onClick={() => setEnabledFilter(f)} aria-pressed={enabledFilter === f} style={pillStyle(enabledFilter === f)}>{f}</button>
+            ))}
+          </div>
         </div>
         <div style={{display: "flex", alignItems: "center", gap: 12}}>
           {lastRefresh && (
@@ -566,10 +558,8 @@ function ForwardManagerImpl() {
         ) : (
           <>
             <SearchFilterBar
-              query={query}                 setQuery={setQuery}
-              statusFilter={statusFilter}   setStatusFilter={setStatusFilter}
-              enabledFilter={enabledFilter} setEnabledFilter={setEnabledFilter}
-              total={destList.length}       shown={filtered.length}
+              query={query}           setQuery={setQuery}
+              total={destList.length} shown={filtered.length}
             />
             {filtered.length === 0 ? (
               <EmptyState filtered={isFiltered} onAdd={() => setModal({mode: "add"})} onClear={clearFilters}/>

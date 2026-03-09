@@ -51,7 +51,7 @@ export default function Navigator({initialized, token}) {
   return (<>
     <Navbar>
       <Container fluid className={{color:'#fff'}}>
-        <Navbar.Brand>
+        <Navbar.Brand style={{display: 'flex', alignItems: 'center', gap: 10}}>
           <img
             src={logo}
             height="36"
@@ -59,6 +59,10 @@ export default function Navigator({initialized, token}) {
             className="d-inline-block align-middle"
             alt="Ravnur"
           />
+          <span style={{display: 'inline-block', verticalAlign: 'middle', lineHeight: 1.25}}>
+            <span style={{display: 'block', fontWeight: 800, fontSize: 14, letterSpacing: '-0.02em', color: '#111111'}}>FORWARD</span>
+            <span style={{display: 'block', fontSize: 9, color: '#6b6865', letterSpacing: '0.1em'}}>RAVNUR SIMULCAST MANAGER</span>
+          </span>
         </Navbar.Brand>
         <Nav className='me-auto' variant="pills" activeKey={activekey}>
           {navs.map((e, index) => {
