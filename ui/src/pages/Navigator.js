@@ -8,11 +8,10 @@ import Container from "react-bootstrap/Container";
 import {Navbar, Nav} from 'react-bootstrap';
 import {Link, useLocation} from "react-router-dom";
 import logo from '../resources/logo.svg';
-import LanguageSwitch from "../components/LanguageSwitch";
 import {useTranslation} from "react-i18next";
 import {Token} from "../utils";
 
-export default function Navigator({initialized, token, localChanged}) {
+export default function Navigator({initialized, token}) {
   const [activekey, setActiveKey] = React.useState(1);
   const [navs, setNavs] = React.useState([]);
   const location = useLocation();
@@ -76,9 +75,7 @@ export default function Navigator({initialized, token, localChanged}) {
             );
           })}
         </Nav>
-        <Navbar.Collapse className="justify-content-end">
-          <LanguageSwitch localChanged={localChanged} />
-        </Navbar.Collapse>
+
       </Container>
     </Navbar>
   </>);
