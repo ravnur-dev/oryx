@@ -36,15 +36,5 @@ function FooterImpl() {
       }).catch(handleError);
   }, [handleError]);
 
-  return (
-    <Container fluid>
-      <p></p>
-      <p className="text-center">
-        <a href='https://github.com/ossrs/oryx' target='_blank' rel='noreferrer'>
-          &copy;Oryx/v{versions?.data?.version}
-        </a>
-        &nbsp; <a href='https://beian.miit.gov.cn' target='_blank' rel='noreferrer'>{beian?.icp}</a>
-      </p>
-    </Container>
-  );
+  return null;
 }
