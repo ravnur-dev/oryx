@@ -4,15 +4,15 @@
 // SPDX-License-Identifier: MIT
 //
 import React from "react";
-import Container from "react-bootstrap/Container";
-import {Form, Button, Spinner, Alert} from 'react-bootstrap';
+import {Spinner} from 'react-bootstrap';
 import axios from "axios";
 import {useNavigate} from "react-router-dom";
 import {Token, Tools} from '../utils';
 import {SrsErrorBoundary} from "../components/SrsErrorBoundary";
 import {useErrorHandler} from "react-error-boundary";
-import {useTranslation} from "react-i18next";
 import {msalInstance, loginRequest} from "../msalInstance";
+import ravnurLogo from '../resources/ravnur-logo.svg';
+import patternBg from '../resources/pattern-onboard.png';
 
 export default function Login({onLogin}) {
   return (
@@ -23,15 +23,11 @@ export default function Login({onLogin}) {
 }
 
 function LoginImpl({onLogin}) {
-  const [plaintext, setPlaintext] = React.useState(true);
-  const [password, setPassword] = React.useState();
   const [operating, setOperating] = React.useState(false);
   const [entraError, setEntraError] = React.useState('');
+  const [btnHover, setBtnHover] = React.useState(false);
   const navigate = useNavigate();
-  const passwordRef = React.useRef();
-  const plaintextRef = React.useRef();
   const handleError = useErrorHandler();
-  const {t} = useTranslation();
 
   // Verify an existing token on load — if valid, skip the login page.
   React.useEffect(() => {
@@ -39,10 +35,7 @@ function LoginImpl({onLogin}) {
     if (!token || !token.token) return;
 
     console.log(`Login: Verify, token is ${Tools.mask(token)}`);
-
-    axios.post('/terraform/v1/mgmt/token', {
-      ...token,
-    }).then(res => {
+    axios.post('/terraform/v1/mgmt/token', {...token}).then(res => {
       axios.post('/terraform/v1/mgmt/token', {}, {
         headers: Token.loadBearerHeader(),
       }).then(res => {
@@ -51,11 +44,6 @@ function LoginImpl({onLogin}) {
       });
     }).catch(handleError);
   }, [navigate, handleError]);
-
-  // Focus the password field when visible.
-  React.useEffect(() => {
-    plaintext ? plaintextRef.current?.focus() : passwordRef.current?.focus();
-  }, [plaintext]);
 
   // Sign in with Microsoft Entra — popup flow.
   const handleEntraLogin = React.useCallback(async () => {
@@ -72,11 +60,7 @@ function LoginImpl({onLogin}) {
       onLogin && onLogin();
       navigate('/routers-forward');
     } catch (err) {
-      // Cancelled popup — user closed the window, no message needed.
-      if (err?.errorCode === 'user_cancelled' || err?.errorCode === 'popup_window_error') {
-        return;
-      }
-      // Registered but not authorized in this app — show the Forbidden page.
+      if (err?.errorCode === 'user_cancelled' || err?.errorCode === 'popup_window_error') return;
       const msg = err?.response?.data?.message || err?.message || '';
       if (msg.includes('not authorized')) {
         navigate('/routers-forbidden');
@@ -88,78 +72,110 @@ function LoginImpl({onLogin}) {
     }
   }, [onLogin, navigate]);
 
-  // Original password login (kept for admin/fallback access).
-  const handleLogin = React.useCallback((e) => {
-    e.preventDefault();
-    setOperating(true);
-
-    axios.post('/terraform/v1/mgmt/login', {
-      password,
-    }).then(async (res) => {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      const data = res.data.data;
-      console.log(`Login: OK, token is ${Tools.mask(data)}`);
-      Token.save(data);
-      onLogin && onLogin();
-      navigate('/routers-forward');
-    }).catch(handleError).finally(setOperating);
-  }, [password, handleError, onLogin, navigate, setOperating]);
-
   return (
-    <>
-      <Container fluid style={{maxWidth: 480, paddingTop: '3rem'}}>
+    // Full-viewport overlay covers the global Navigator/Footer
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex',
+    }}>
 
-        {/* Primary: Entra sign-in */}
-        <div className="mb-4">
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-100"
-            disabled={operating}
-            onClick={handleEntraLogin}
-          >
-            {operating
-              ? <><Spinner animation="border" size="sm" className="me-2"/>Signing in…</>
-              : <>Sign in with Microsoft</>
-            }
-          </Button>
-          {entraError && (
-            <Alert variant="danger" className="mt-2 mb-0">{entraError}</Alert>
+      {/* ── Left panel ── */}
+      <div style={{
+        width: '38%', minWidth: 340,
+        background: '#f7f7f5',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: '60px 56px',
+        position: 'relative',
+      }}>
+
+        {/* Logo */}
+        <img
+          src={ravnurLogo}
+          alt="Ravnur"
+          style={{width: 36, height: 36, marginBottom: 32}}
+        />
+
+        {/* Title */}
+        <h1 style={{
+          fontFamily: "'Public Sans', sans-serif",
+          fontWeight: 800, fontSize: 30,
+          color: '#111827', lineHeight: 1.25,
+          marginBottom: 16, letterSpacing: '-0.01em',
+        }}>
+          Ravnur Simulcast Manager
+        </h1>
+
+        {/* Subtitle */}
+        <p style={{
+          fontFamily: "'Public Sans', sans-serif",
+          fontSize: 14, color: '#6b7280', lineHeight: 1.65,
+          marginBottom: 48,
+        }}>
+          Reach your viewers wherever they are by sending a single stream to multiple destinations.
+        </p>
+
+        {/* Sign in button */}
+        <button
+          onClick={handleEntraLogin}
+          disabled={operating}
+          style={{
+            width: '100%',
+            padding: '11px 20px',
+            background: '#ffffff',
+            border: `1.5px solid ${btnHover ? '#b54100' : '#d1d5db'}`,
+            borderRadius: 6,
+            fontFamily: "'Public Sans', sans-serif",
+            fontSize: 14, fontWeight: 600,
+            color: '#111827',
+            cursor: operating ? 'not-allowed' : 'pointer',
+            opacity: operating ? 0.6 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            transition: 'border-color 0.15s',
+            boxShadow: btnHover && !operating ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+          }}
+          onMouseEnter={() => setBtnHover(true)}
+          onMouseLeave={() => setBtnHover(false)}
+        >
+          {operating ? (
+            <>
+              <Spinner animation="border" size="sm" style={{color: '#6b7280'}}/>
+              Signing in…
+            </>
+          ) : (
+            'Sign in with Microsoft'
           )}
+        </button>
+
+        {/* Error message */}
+        {entraError && (
+          <div style={{
+            marginTop: 12, padding: '10px 14px',
+            background: '#fef2f2', border: '1px solid #fca5a5',
+            borderRadius: 6, color: '#b91c1c',
+            fontFamily: "'Public Sans', sans-serif", fontSize: 13,
+          }}>
+            {entraError}
+          </div>
+        )}
+
+        {/* Copyright */}
+        <div style={{
+          position: 'absolute', bottom: 24, left: 56,
+          fontFamily: "'Public Sans', sans-serif",
+          fontSize: 12, color: '#9ca3af',
+        }}>
+          © 2026 Ravnur Inc. All rights reserved.
         </div>
+      </div>
 
-        <hr/>
-
-        {/* Secondary: original password login */}
-        <details>
-          <summary className="text-muted mb-3" style={{cursor: 'pointer', userSelect: 'none'}}>
-            Admin / password login
-          </summary>
-          <Form>
-            <Form.Group className="mb-3" controlId="formBasicPassword">
-              <Form.Label>{t('login.passwordLabel')}</Form.Label>
-              {!plaintext && (
-                <Form.Control type="password" placeholder="Password" ref={passwordRef}
-                  defaultValue={password} onChange={(e) => setPassword(e.target.value)}/>
-              )}
-              {plaintext && (
-                <Form.Control type="text" placeholder="Password" ref={plaintextRef}
-                  defaultValue={password} onChange={(e) => setPassword(e.target.value)}/>
-              )}
-              <Form.Text className="text-muted">* {t('login.passwordTip')}</Form.Text>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="formBasicCheckbox">
-              <Form.Check type="checkbox" label={t('login.labelShow')}
-                defaultChecked={plaintext} onClick={() => setPlaintext(!plaintext)}/>
-            </Form.Group>
-            <Button variant="secondary" type="submit" disabled={operating}
-              onClick={(e) => handleLogin(e)}>
-              {t('login.labelLogin')}
-            </Button>
-          </Form>
-        </details>
-
-      </Container>
-    </>
+      {/* ── Right panel — decorative pattern ── */}
+      <div style={{
+        flex: 1,
+        backgroundColor: '#b54100',
+        backgroundImage: `url(${patternBg})`,
+        backgroundSize: '280px 280px',
+        backgroundRepeat: 'repeat',
+      }}/>
+    </div>
   );
 }
