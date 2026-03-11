@@ -249,6 +249,7 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
                 <OpenAISecretSettings {...{
                   baseURL, setBaseURL, secretKey, setSecretKey,
                   organization, setOrganization,
+                  apiType, apiVersion, deploymentName,
                 }} />
                 {apiType === 'azure' && <>
                   <Form.Group className="mb-3">

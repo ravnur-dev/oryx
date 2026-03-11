@@ -5,7 +5,7 @@ import {Button, Form, Spinner} from "react-bootstrap";
 import {useTranslation} from "react-i18next";
 import {useErrorHandler} from "react-error-boundary";
 
-export function OpenAISecretSettings({baseURL, setBaseURL, secretKey, setSecretKey, organization, setOrganization}) {
+export function OpenAISecretSettings({baseURL, setBaseURL, secretKey, setSecretKey, organization, setOrganization, apiType, apiVersion, deploymentName}) {
   const {t} = useTranslation();
   const handleError = useErrorHandler();
 
@@ -15,20 +15,22 @@ export function OpenAISecretSettings({baseURL, setBaseURL, secretKey, setSecretK
     if (!secretKey) return alert(`Invalid secret key ${secretKey}`);
     if (!baseURL) return alert(`Invalid base url ${baseURL}`);
 
-    const urlPattern = new RegExp('^(http|https)://.+(/v1)$');
-    if (!urlPattern.test(baseURL)) return alert(`Invalid BaseUrl ${baseURL}, should be http(s)://your-server/v1`);
+    if (apiType !== 'azure') {
+      const urlPattern = new RegExp('^(http|https)://.+(/v1)$');
+      if (!urlPattern.test(baseURL)) return alert(`Invalid BaseUrl ${baseURL}, should be http(s)://your-server/v1`);
+    }
 
     setChecking(true);
 
     axios.post('/terraform/v1/ai/transcript/check', {
-      secretKey, baseURL,
+      secretKey, baseURL, apiType, apiVersion, deploymentName,
     }, {
       headers: Token.loadBearerHeader(),
     }).then(res => {
       alert(`${t('helper.testOk')}: ${t('transcript.testOk')}`);
       console.log(`OpenAI: Test service ok.`);
     }).catch(handleError).finally(setChecking);
-  }, [t, handleError, secretKey, baseURL, setChecking]);
+  }, [t, handleError, secretKey, baseURL, apiType, apiVersion, deploymentName, setChecking]);
 
   return (
     <React.Fragment>
