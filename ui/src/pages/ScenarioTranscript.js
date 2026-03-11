@@ -130,7 +130,7 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
       }, {
         headers: Token.loadBearerHeader(),
       }).then(res => {
-        const queue = res.data.data;
+        const queue = res.data.data || {};
         queue.segments = queue?.segments?.map(segment => {
           return {
             ...segment,
@@ -154,7 +154,7 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
       }, {
         headers: Token.loadBearerHeader(),
       }).then(res => {
-        const queue = res.data.data;
+        const queue = res.data.data || {};
         queue.segments = queue?.segments?.map(segment => {
           return {
             ...segment,
