@@ -1135,9 +1135,10 @@ func (v *Stage) UpdateFromRoom(room *SrsLiveRoom) {
 	v.postPrompt = room.AIPostPrompt
 
 	// Initialize the AI services.
-	v.aiConfig = openai.DefaultConfig(room.AISecretKey)
-	v.aiConfig.OrgID = room.AIOrganization
-	v.aiConfig.BaseURL = room.AIBaseURL
+	v.aiConfig = buildOpenAIClientConfig(
+		room.AISecretKey, room.AIBaseURL, room.AIOrganization,
+		room.AIAPIType, room.AIAPIVersion, room.AIDeploymentName,
+	)
 
 	// Bind stage to room.
 	room.StageUUID = v.sid

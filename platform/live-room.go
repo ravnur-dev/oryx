@@ -305,11 +305,17 @@ type SrsAssistantProvider struct {
 	AIOrganization string `json:"aiOrganization"`
 	// The AI base URL.
 	AIBaseURL string `json:"aiBaseURL"`
+	// The AI API type: "openai" (default) or "azure".
+	AIAPIType string `json:"aiApiType"`
+	// The Azure OpenAI API version, e.g. "2024-02-01". Required when AIAPIType is "azure".
+	AIAPIVersion string `json:"aiApiVersion"`
+	// The Azure Whisper deployment name. If empty, the model name is used.
+	AIDeploymentName string `json:"aiDeploymentName"`
 }
 
 func (v *SrsAssistantProvider) String() string {
-	return fmt.Sprintf("provider=%v, secretKey=%vB, baseURL=%v",
-		v.AIProvider, len(v.AISecretKey), v.AIBaseURL)
+	return fmt.Sprintf("provider=%v, secretKey=%vB, baseURL=%v, apiType=%v",
+		v.AIProvider, len(v.AISecretKey), v.AIBaseURL, v.AIAPIType)
 }
 
 type SrsAssistantASR struct {

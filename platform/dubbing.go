@@ -1834,9 +1834,10 @@ func (v *SrsDubbingTask) Start(ctx context.Context) error {
 				logger.Tf(ctx, "Convert %v to segment %v ok, starttime=%v", absAsrInputAudio, tmpAsrInputAudio, starttime)
 
 				// Initialize the AI services.
-				aiConfig := openai.DefaultConfig(v.project.ASR.AISecretKey)
-				aiConfig.OrgID = v.project.ASR.AIOrganization
-				aiConfig.BaseURL = v.project.ASR.AIBaseURL
+				aiConfig := buildOpenAIClientConfig(
+					v.project.ASR.AISecretKey, v.project.ASR.AIBaseURL, v.project.ASR.AIOrganization,
+					v.project.ASR.AIAPIType, v.project.ASR.AIAPIVersion, v.project.ASR.AIDeploymentName,
+				)
 
 				// Do ASR, convert to text.
 				client := openai.NewClientWithConfig(aiConfig)

@@ -51,6 +51,9 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
   const [baseURL, setBaseURL] = React.useState(defaultConf.baseURL || (language === 'zh' ? '' : 'https://api.openai.com/v1'));
   const [targetLanguage, setTargetLanguage] = React.useState(defaultConf.lang || language);
   const [webvttEnabled, setWebvttEnabled] = React.useState(defaultConf.webvttEnabled);
+  const [apiType, setApiType] = React.useState(defaultConf.apiType || 'openai');
+  const [apiVersion, setApiVersion] = React.useState(defaultConf.apiVersion || '2024-02-01');
+  const [deploymentName, setDeploymentName] = React.useState(defaultConf.deploymentName || '');
 
   const [liveQueue, setLiveQueue] = React.useState();
   const [asrQueue, setAsrQueue] = React.useState();
@@ -96,6 +99,7 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
     axios.post('/terraform/v1/ai/transcript/apply', {
       uuid, all: !!enabled, secretKey, organization, baseURL, lang: targetLanguage,
       webvttEnabled: !!webvttEnabled,
+      apiType, apiVersion, deploymentName,
     }, {
       headers: Token.loadBearerHeader(),
     }).then(res => {
@@ -103,7 +107,7 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
       console.log(`Transcript: Apply config ok, uuid=${uuid}.`);
       success && success();
     }).catch(handleError);
-  }, [t, handleError, secretKey, baseURL, targetLanguage, webvttEnabled, uuid, organization]);
+  }, [t, handleError, secretKey, baseURL, targetLanguage, webvttEnabled, uuid, organization, apiType, apiVersion, deploymentName]);
 
   const resetTask = React.useCallback(() => {
     setOperating(true);
@@ -235,10 +239,33 @@ function ScenarioTranscriptImpl({activeKey, defaultEnabled, defaultConf, default
                 </Nav>
               </Card.Header>
               {configItem === 'provider' && <Card.Body>
+                <Form.Group className="mb-3">
+                  <Form.Label>API Type</Form.Label>
+                  <Form.Select value={apiType} onChange={(e) => setApiType(e.target.value)}>
+                    <option value="openai">OpenAI (api.openai.com)</option>
+                    <option value="azure">Azure AI Foundry (Azure OpenAI)</option>
+                  </Form.Select>
+                </Form.Group>
                 <OpenAISecretSettings {...{
                   baseURL, setBaseURL, secretKey, setSecretKey,
                   organization, setOrganization,
                 }} />
+                {apiType === 'azure' && <>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Azure API Version</Form.Label>
+                    <Form.Text> * Required for Azure. &nbsp;
+                      e.g. <code>2024-02-01</code>
+                    </Form.Text>
+                    <Form.Control as="input" value={apiVersion} onChange={(e) => setApiVersion(e.target.value)} />
+                  </Form.Group>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Whisper Deployment Name</Form.Label>
+                    <Form.Text> * The name of your Azure Whisper deployment. &nbsp;
+                      If empty, the model name (<code>whisper-1</code>) is used.
+                    </Form.Text>
+                    <Form.Control as="input" value={deploymentName} onChange={(e) => setDeploymentName(e.target.value)} />
+                  </Form.Group>
+                </>}
               </Card.Body>}
               {configItem === 'asr' && <Card.Body>
                 <Form.Group className="mb-3">

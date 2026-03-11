@@ -30,6 +30,29 @@ import (
 // The total segments in WebVTT HLS window.
 const maxWebVttSegments = 9
 
+// buildOpenAIClientConfig constructs an openai.ClientConfig for either the standard OpenAI
+// API or Azure OpenAI, based on apiType ("azure" or anything else for standard OpenAI).
+// deploymentName overrides the Azure model-to-deployment mapping when non-empty.
+func buildOpenAIClientConfig(apiKey, baseURL, org, apiType, apiVersion, deploymentName string) openai.ClientConfig {
+	if apiType == "azure" {
+		cfg := openai.DefaultAzureConfig(apiKey, baseURL)
+		if apiVersion != "" {
+			cfg.APIVersion = apiVersion
+		}
+		if deploymentName != "" {
+			name := deploymentName
+			cfg.AzureModelMapperFunc = func(model string) string { return name }
+		}
+		return cfg
+	}
+	cfg := openai.DefaultConfig(apiKey)
+	if baseURL != "" {
+		cfg.BaseURL = baseURL
+	}
+	cfg.OrgID = org
+	return cfg
+}
+
 var transcriptWorker *TranscriptWorker
 
 type TranscriptWorker struct {
@@ -174,13 +197,21 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 				return errors.Wrapf(err, "authenticate")
 			}
 
-			// Query whisper-1 model detail.
-			var config openai.ClientConfig
-			config = openai.DefaultConfig(transcriptConfig.SecretKey)
-			config.BaseURL = transcriptConfig.BaseURL
+			config := buildOpenAIClientConfig(
+				transcriptConfig.SecretKey, transcriptConfig.BaseURL, transcriptConfig.Organization,
+				transcriptConfig.APIType, transcriptConfig.APIVersion, transcriptConfig.DeploymentName,
+			)
 
 			ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
+
+			// Azure OpenAI does not expose the model-list or generic chat endpoints in the
+			// same way as the standard OpenAI API, so skip those checks when using Azure.
+			if transcriptConfig.APIType == "azure" {
+				ohttp.WriteData(ctx, w, r, nil)
+				logger.Tf(ctx, "transcript check ok (azure), config=<%v>, token=%vB", transcriptConfig, len(token))
+				return nil
+			}
 
 			client := openai.NewClientWithConfig(config)
 			model, err := client.GetModel(ctx, "whisper-1")
@@ -821,6 +852,12 @@ type TranscriptConfig struct {
 	Language string `json:"lang"`
 	// Whether enable WebVTT subtitle.
 	EnableWebVTT bool `json:"webvttEnabled"`
+	// The AI API type: "openai" (default) or "azure".
+	APIType string `json:"apiType"`
+	// The Azure OpenAI API version, e.g. "2024-02-01". Required when APIType is "azure".
+	APIVersion string `json:"apiVersion"`
+	// The Azure Whisper deployment name. If empty, the model name is used.
+	DeploymentName string `json:"deploymentName"`
 }
 
 func NewTranscriptConfig() *TranscriptConfig {
@@ -830,8 +867,9 @@ func NewTranscriptConfig() *TranscriptConfig {
 }
 
 func (v TranscriptConfig) String() string {
-	return fmt.Sprintf("all=%v, key=%vB, organization=%v, base=%v, lang=%v, webvtt=%v",
-		v.All, len(v.SecretKey), v.Organization, v.BaseURL, v.Language, v.EnableWebVTT)
+	return fmt.Sprintf("all=%v, key=%vB, organization=%v, base=%v, lang=%v, webvtt=%v, apiType=%v, apiVersion=%v, deployment=%v",
+		v.All, len(v.SecretKey), v.Organization, v.BaseURL, v.Language, v.EnableWebVTT,
+		v.APIType, v.APIVersion, v.DeploymentName)
 }
 
 func (v *TranscriptConfig) Load(ctx context.Context) error {
@@ -1351,10 +1389,10 @@ func (v *TranscriptTask) DriveAsrQueue(ctx context.Context) error {
 	}
 
 	// Convert the audio file to text by AI.
-	var config openai.ClientConfig
-	config = openai.DefaultConfig(v.config.SecretKey)
-	config.BaseURL = v.config.BaseURL
-	config.OrgID = v.config.Organization
+	config := buildOpenAIClientConfig(
+		v.config.SecretKey, v.config.BaseURL, v.config.Organization,
+		v.config.APIType, v.config.APIVersion, v.config.DeploymentName,
+	)
 
 	// TODO: FIXME: Fast retry when failed.
 	// TODO: FIXME: Use smaller timeout.
