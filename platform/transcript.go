@@ -27,8 +27,8 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// The total segments in overlay HLS.
-const maxOverlaySegments = 9
+// The total segments in WebVTT HLS window.
+const maxWebVttSegments = 9
 
 var transcriptWorker *TranscriptWorker
 
@@ -214,48 +214,6 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 		}
 	})
 
-	ep = "/terraform/v1/ai/transcript/clear-subtitle"
-	logger.Tf(ctx, "Handle %v", ep)
-	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
-		if err := func() error {
-			var token string
-			var uuid, tsid string
-			if err := ParseBody(ctx, r.Body, &struct {
-				Token *string `json:"token"`
-				UUID  *string `json:"uuid"`
-				TSID  *string `json:"tsid"`
-			}{
-				Token: &token,
-				UUID:  &uuid, TSID: &tsid,
-			}); err != nil {
-				return errors.Wrapf(err, "parse body")
-			}
-
-			apiSecret := envApiSecret()
-			if err := Authenticate(ctx, apiSecret, token, r.Header); err != nil {
-				return errors.Wrapf(err, "authenticate")
-			}
-
-			if uuid != v.task.UUID {
-				return errors.Errorf("invalid uuid %v", uuid)
-			}
-
-			if err := v.task.clearSubtitle(ctx, tsid); err != nil {
-				return errors.Wrapf(err, "clear subtitle task %v and tsid=%v", uuid, tsid)
-			}
-
-			type ClearSubtitleResponse struct {
-				UUID string `json:"uuid"`
-			}
-
-			ohttp.WriteData(ctx, w, r, &ClearSubtitleResponse{uuid})
-			logger.Tf(ctx, "transcript clear subtitle ok, uuid=%v, token=%vB", uuid, len(token))
-			return nil
-		}(); err != nil {
-			ohttp.WriteError(ctx, w, r, err)
-		}
-	})
-
 	ep = "/terraform/v1/ai/transcript/reset"
 	logger.Tf(ctx, "Handle %v", ep)
 	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
@@ -410,196 +368,6 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 		}
 	})
 
-	ep = "/terraform/v1/ai/transcript/fix-queue"
-	logger.Tf(ctx, "Handle %v", ep)
-	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
-		if err := func() error {
-			var token string
-			if err := ParseBody(ctx, r.Body, &struct {
-				Token *string `json:"token"`
-			}{
-				Token: &token,
-			}); err != nil {
-				return errors.Wrapf(err, "parse body")
-			}
-
-			apiSecret := envApiSecret()
-			if err := Authenticate(ctx, apiSecret, token, r.Header); err != nil {
-				return errors.Wrapf(err, "authenticate")
-			}
-
-			type AsrSegment struct {
-				Start float64 `json:"start"`
-				End   float64 `json:"end"`
-				Text  string  `json:"text"`
-			}
-
-			type Segment struct {
-				TsID     string  `json:"tsid"`
-				SeqNo    uint64  `json:"seqno"`
-				URL      string  `json:"url"`
-				Duration float64 `json:"duration"`
-				Size     uint64  `json:"size"`
-				// The source ts file.
-				SourceTsID string `json:"stsid"`
-				// The cost in ms to extract audio.
-				ExtractAudioCost int32 `json:"eac"`
-				// The final ASR text.
-				ASRText string `json:"asr"`
-				// The ASR segments.
-				ASRSegments []AsrSegment `json:"asrs"`
-				// Whether user clear the ASR text.
-				UserClearASR bool `json:"uca"`
-				// The cost in msg to do ASR.
-				ASRCost int32 `json:"asrc"`
-			}
-			type FixQueueResponse struct {
-				Segments []*Segment `json:"segments"`
-				Count    int        `json:"count"`
-			}
-			res := &FixQueueResponse{}
-
-			segments := v.task.fixSegments()
-			for _, segment := range segments {
-				asrSegments := []AsrSegment{}
-				for _, asrSegment := range segment.AsrText.Segments {
-					asrSegments = append(asrSegments, AsrSegment{
-						Start: asrSegment.Start,
-						End:   asrSegment.End,
-						Text:  asrSegment.Text,
-					})
-				}
-
-				res.Segments = append(res.Segments, []*Segment{&Segment{
-					TsID:     segment.AudioFile.TsID,
-					SeqNo:    segment.AudioFile.SeqNo,
-					URL:      segment.AudioFile.File,
-					Duration: segment.AudioFile.Duration,
-					Size:     segment.AudioFile.Size,
-					// The source ts file.
-					SourceTsID: segment.TsFile.TsID,
-					// The cost in ms to extract audio.
-					ExtractAudioCost: int32(segment.CostExtractAudio.Milliseconds()),
-					// The final ASR text.
-					ASRText: segment.AsrText.Text,
-					// The ASR segments.
-					ASRSegments: asrSegments,
-					// User clear the ASR text.
-					UserClearASR: segment.UserClearASR,
-					// The cost in msg to do ASR.
-					ASRCost: int32(segment.CostASR.Milliseconds()),
-				}}...)
-			}
-
-			res.Count = len(res.Segments)
-
-			ohttp.WriteData(ctx, w, r, res)
-			logger.Tf(ctx, "transcript query fix ok, token=%vB", len(token))
-			return nil
-		}(); err != nil {
-			ohttp.WriteError(ctx, w, r, err)
-		}
-	})
-
-	ep = "/terraform/v1/ai/transcript/overlay-queue"
-	logger.Tf(ctx, "Handle %v", ep)
-	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
-		if err := func() error {
-			var token string
-			if err := ParseBody(ctx, r.Body, &struct {
-				Token *string `json:"token"`
-			}{
-				Token: &token,
-			}); err != nil {
-				return errors.Wrapf(err, "parse body")
-			}
-
-			apiSecret := envApiSecret()
-			if err := Authenticate(ctx, apiSecret, token, r.Header); err != nil {
-				return errors.Wrapf(err, "authenticate")
-			}
-
-			type AsrSegment struct {
-				Start float64 `json:"start"`
-				End   float64 `json:"end"`
-				Text  string  `json:"text"`
-			}
-
-			type Segment struct {
-				TsID     string  `json:"tsid"`
-				SeqNo    uint64  `json:"seqno"`
-				URL      string  `json:"url"`
-				Duration float64 `json:"duration"`
-				Size     uint64  `json:"size"`
-				// The source ts file.
-				SourceTsID string `json:"stsid"`
-				// The cost in ms to extract audio.
-				ExtractAudioCost int32 `json:"eac"`
-				// The ASR source mp4 file.
-				AudioFile string `json:"audio"`
-				// The final ASR text.
-				ASRText string `json:"asr"`
-				// The ASR segments.
-				ASRSegments []AsrSegment `json:"asrs"`
-				// Whether user clear the ASR text.
-				UserClearASR bool `json:"uca"`
-				// The cost in msg to do ASR.
-				ASRCost int32 `json:"asrc"`
-				// The cost for overlay ASR text onto video.
-				OverlayCost int32 `json:"olc"`
-			}
-			type OverlayQueueResonse struct {
-				Segments []*Segment `json:"segments"`
-				Count    int        `json:"count"`
-			}
-			res := &OverlayQueueResonse{}
-
-			segments := v.task.overlaySegments()
-			for _, segment := range segments {
-				asrSegments := []AsrSegment{}
-				for _, asrSegment := range segment.AsrText.Segments {
-					asrSegments = append(asrSegments, AsrSegment{
-						Start: asrSegment.Start,
-						End:   asrSegment.End,
-						Text:  asrSegment.Text,
-					})
-				}
-
-				res.Segments = append(res.Segments, []*Segment{&Segment{
-					TsID:     segment.OverlayFile.TsID,
-					SeqNo:    segment.OverlayFile.SeqNo,
-					URL:      segment.OverlayFile.File,
-					Duration: segment.OverlayFile.Duration,
-					Size:     segment.OverlayFile.Size,
-					// The source ts file.
-					SourceTsID: segment.TsFile.TsID,
-					// The cost in ms to extract audio.
-					ExtractAudioCost: int32(segment.CostExtractAudio.Milliseconds()),
-					// The ASR source mp4 file.
-					AudioFile: segment.AudioFile.TsID,
-					// The final ASR text.
-					ASRText: segment.AsrText.Text,
-					// The ASR segments.
-					ASRSegments: asrSegments,
-					// User clear the ASR text.
-					UserClearASR: segment.UserClearASR,
-					// The cost in msg to do ASR.
-					ASRCost: int32(segment.CostASR.Milliseconds()),
-					// The cost for overlay ASR text onto video.
-					OverlayCost: int32(segment.CostOverlay.Milliseconds()),
-				}}...)
-			}
-
-			res.Count = len(res.Segments)
-
-			ohttp.WriteData(ctx, w, r, res)
-			logger.Tf(ctx, "transcript query overlay ok, token=%vB", len(token))
-			return nil
-		}(); err != nil {
-			ohttp.WriteError(ctx, w, r, err)
-		}
-	})
-
 	ep = "/terraform/v1/ai/transcript/hls/webvtt/"
 	logger.Tf(ctx, "Handle %v", ep)
 	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
@@ -613,21 +381,21 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 				return errors.Errorf("invalid uuid %v from %v of %v", uuid, filename, r.URL.Path)
 			}
 
-			segments := v.task.overlaySegments()
+			segments := v.task.webvttSegments()
 			if len(segments) == 0 {
 				return errors.Errorf("no segments for %v", uuid)
 			}
 
 			firstSegment := segments[0]
-			if firstSegment.OverlayFile == nil {
-				return errors.Errorf("no overlay file for %v", uuid)
+			if firstSegment.TsFile == nil {
+				return errors.Errorf("no ts file for %v", uuid)
 			}
-			if firstSegment.OverlayFile.Duration == 0.0 {
-				return errors.Errorf("no duration for %v %v", uuid, firstSegment.OverlayFile.TsID)
+			if firstSegment.TsFile.Duration == 0.0 {
+				return errors.Errorf("no duration for %v %v", uuid, firstSegment.TsFile.TsID)
 			}
-			bitrate := int64(firstSegment.OverlayFile.Size) * 8 / int64(firstSegment.OverlayFile.Duration)
+			bitrate := int64(firstSegment.TsFile.Size) * 8 / int64(firstSegment.TsFile.Duration)
 			if bitrate <= 0 {
-				return errors.Errorf("invalid bitrate %v of %v %v", bitrate, uuid, firstSegment.OverlayFile.TsID)
+				return errors.Errorf("invalid bitrate %v of %v %v", bitrate, uuid, firstSegment.TsFile.TsID)
 			}
 
 			contentType, m3u8Body, err := buildLiveM3u8ForVariantCC(
@@ -655,7 +423,7 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 			}
 
 			var tsFiles []*TsFile
-			segments := v.task.overlaySegments()
+			segments := v.task.webvttSegments()
 			for _, segment := range segments {
 				tsFiles = append(tsFiles, segment.TsFile)
 			}
@@ -710,9 +478,9 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 			}
 
 			var tsFiles []*TsFile
-			segments := v.task.overlaySegments()
+			segments := v.task.webvttSegments()
 			for _, segment := range segments {
-				vttFile := *segment.OverlayFile
+				vttFile := *segment.TsFile
 				vttFile.Key = fmt.Sprintf("%v.vtt", vttFile.TsID)
 				tsFiles = append(tsFiles, &vttFile)
 			}
@@ -739,10 +507,10 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 				return errors.Errorf("invalid uuid %v from %v of %v", uuid, fileBase, r.URL.Path)
 			}
 
-			// Find out the segment by overlay vtt ID.
+			// Find out the segment by ts ID.
 			var segment *TranscriptSegment
-			for _, s := range v.task.overlaySegments() {
-				if s.OverlayFile != nil && s.OverlayFile.TsID == uuid {
+			for _, s := range v.task.webvttSegments() {
+				if s.TsFile != nil && s.TsFile.TsID == uuid {
 					segment = s
 					break
 				}
@@ -795,145 +563,6 @@ func (v *TranscriptWorker) Handle(ctx context.Context, handler *http.ServeMux) e
 		}
 	})
 
-	ep = "/terraform/v1/ai/transcript/hls/overlay/"
-	logger.Tf(ctx, "Handle %v", ep)
-	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
-		overlayM3u8Handler := func(w http.ResponseWriter, r *http.Request) error {
-			// Format is /overlay/:uuid.m3u8
-			filename := r.URL.Path[len("/terraform/v1/ai/transcript/hls/overlay/"):]
-			// Format is :uuid.m3u8
-			uuid := filename[:len(filename)-len(path.Ext(filename))]
-			if len(uuid) == 0 {
-				return errors.Errorf("invalid uuid %v from %v of %v", uuid, filename, r.URL.Path)
-			}
-
-			var tsFiles []*TsFile
-			segments := v.task.overlaySegments()
-			for _, segment := range segments {
-				tsFiles = append(tsFiles, segment.OverlayFile)
-			}
-
-			contentType, m3u8Body, duration, err := buildLiveM3u8ForLocal(
-				ctx, tsFiles, false, "/terraform/v1/ai/transcript/hls/overlay/",
-			)
-			if err != nil {
-				return errors.Wrapf(err, "build transcript overlay m3u8 of %v", tsFiles)
-			}
-
-			w.Header().Set("Content-Type", contentType)
-			w.Write([]byte(m3u8Body))
-			logger.Tf(ctx, "transcript generate m3u8 ok, uuid=%v, duration=%v", uuid, duration)
-			return nil
-		}
-
-		overlayTsHandler := func(w http.ResponseWriter, r *http.Request) error {
-			// Format is :uuid.ts
-			filename := r.URL.Path[len("/terraform/v1/ai/transcript/hls/overlay/"):]
-			fileBase := path.Base(filename)
-			uuid := fileBase[:len(fileBase)-len(path.Ext(fileBase))]
-			if len(uuid) == 0 {
-				return errors.Errorf("invalid uuid %v from %v of %v", uuid, fileBase, r.URL.Path)
-			}
-
-			tsFilePath := path.Join("transcript", fmt.Sprintf("%v.ts", uuid))
-			if _, err := os.Stat(tsFilePath); err != nil {
-				return errors.Wrapf(err, "no ts file %v", tsFilePath)
-			}
-
-			if tsFile, err := os.Open(tsFilePath); err != nil {
-				return errors.Wrapf(err, "open file %v", tsFilePath)
-			} else {
-				defer tsFile.Close()
-				w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-				io.Copy(w, tsFile)
-			}
-
-			logger.Tf(ctx, "transcript server ts file ok, uuid=%v, ts=%v", uuid, tsFilePath)
-			return nil
-		}
-
-		if err := func() error {
-			if strings.HasSuffix(r.URL.Path, ".m3u8") {
-				return overlayM3u8Handler(w, r)
-			} else if strings.HasSuffix(r.URL.Path, ".ts") {
-				return overlayTsHandler(w, r)
-			}
-
-			return errors.Errorf("invalid handler for %v", r.URL.Path)
-		}(); err != nil {
-			ohttp.WriteError(ctx, w, r, err)
-		}
-	})
-
-	ep = "/terraform/v1/ai/transcript/hls/original/"
-	logger.Tf(ctx, "Handle %v", ep)
-	handler.HandleFunc(ep, func(w http.ResponseWriter, r *http.Request) {
-		originalM3u8Handler := func(w http.ResponseWriter, r *http.Request) error {
-			// Format is /original/:uuid.m3u8
-			filename := r.URL.Path[len("/terraform/v1/ai/transcript/hls/original/"):]
-			// Format is :uuid.m3u8
-			uuid := filename[:len(filename)-len(path.Ext(filename))]
-			if len(uuid) == 0 {
-				return errors.Errorf("invalid uuid %v from %v of %v", uuid, filename, r.URL.Path)
-			}
-
-			var tsFiles []*TsFile
-			segments := v.task.overlaySegments()
-			for _, segment := range segments {
-				tsFiles = append(tsFiles, segment.TsFile)
-			}
-
-			contentType, m3u8Body, duration, err := buildLiveM3u8ForLocal(
-				ctx, tsFiles, false, "/terraform/v1/ai/transcript/hls/original/",
-			)
-			if err != nil {
-				return errors.Wrapf(err, "build transcript original m3u8 of %v", tsFiles)
-			}
-
-			w.Header().Set("Content-Type", contentType)
-			w.Write([]byte(m3u8Body))
-			logger.Tf(ctx, "transcript generate m3u8 ok, uuid=%v, duration=%v", uuid, duration)
-			return nil
-		}
-
-		originalTsHandler := func(w http.ResponseWriter, r *http.Request) error {
-			// Format is :uuid.ts
-			filename := r.URL.Path[len("/terraform/v1/ai/transcript/hls/original/"):]
-			fileBase := path.Base(filename)
-			uuid := fileBase[:len(fileBase)-len(path.Ext(fileBase))]
-			if len(uuid) == 0 {
-				return errors.Errorf("invalid uuid %v from %v of %v", uuid, fileBase, r.URL.Path)
-			}
-
-			tsFilePath := path.Join("transcript", fmt.Sprintf("%v.ts", uuid))
-			if _, err := os.Stat(tsFilePath); err != nil {
-				return errors.Wrapf(err, "no ts file %v", tsFilePath)
-			}
-
-			if tsFile, err := os.Open(tsFilePath); err != nil {
-				return errors.Wrapf(err, "open file %v", tsFilePath)
-			} else {
-				defer tsFile.Close()
-				w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-				io.Copy(w, tsFile)
-			}
-
-			logger.Tf(ctx, "transcript server ts file ok, uuid=%v, ts=%v", uuid, tsFilePath)
-			return nil
-		}
-
-		if err := func() error {
-			if strings.HasSuffix(r.URL.Path, ".m3u8") {
-				return originalM3u8Handler(w, r)
-			} else if strings.HasSuffix(r.URL.Path, ".ts") {
-				return originalTsHandler(w, r)
-			}
-
-			return errors.Errorf("invalid handler for %v", r.URL.Path)
-		}(); err != nil {
-			ohttp.WriteError(ctx, w, r, err)
-		}
-	})
 
 	return nil
 }
@@ -1153,7 +782,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 		}
 	}()
 
-	// Drive the fix queue to overlay queue.
+	// Drive the webvtt queue, remove old files.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1161,30 +790,8 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 		task := v.task
 		for ctx.Err() == nil {
 			var duration time.Duration
-			if err := task.DriveFixQueue(ctx); err != nil {
-				logger.Wf(ctx, "transcript: task %v drive fix queue err %+v", task.String(), err)
-				duration = 10 * time.Second
-			} else {
-				duration = 200 * time.Millisecond
-			}
-
-			select {
-			case <-ctx.Done():
-			case <-time.After(duration):
-			}
-		}
-	}()
-
-	// Drive the overlay queue, remove old files.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		task := v.task
-		for ctx.Err() == nil {
-			var duration time.Duration
-			if err := task.DriveOverlayQueue(ctx); err != nil {
-				logger.Wf(ctx, "transcript: task %v drive overlay queue err %+v", task.String(), err)
+			if err := task.DriveWebVttQueue(ctx); err != nil {
+				logger.Wf(ctx, "transcript: task %v drive webvtt queue err %+v", task.String(), err)
 				duration = 10 * time.Second
 			} else {
 				duration = 200 * time.Millisecond
@@ -1212,26 +819,19 @@ type TranscriptConfig struct {
 	Organization string `json:"organization"`
 	// The language of the stream.
 	Language string `json:"lang"`
-	// The force_style for overlay subtitle.
-	ForceStyle string `json:"forceStyle"`
-	// The video codec parameters.
-	VideoCodecParams string `json:"videoCodecParams"`
-	// Whether enable overlay subtitle.
-	EnableOverlay bool `json:"overlayEnabled"`
 	// Whether enable WebVTT subtitle.
 	EnableWebVTT bool `json:"webvttEnabled"`
 }
 
 func NewTranscriptConfig() *TranscriptConfig {
 	return &TranscriptConfig{
-		All: false, EnableOverlay: true, EnableWebVTT: true,
+		All: false, EnableWebVTT: true,
 	}
 }
 
 func (v TranscriptConfig) String() string {
-	return fmt.Sprintf("all=%v, key=%vB, organization=%v, base=%v, lang=%v, overlay=%v, forceStyle=%v, videoCodecParams=%v, webvtt=%v",
-		v.All, len(v.SecretKey), v.Organization, v.BaseURL, v.Language, v.EnableOverlay, v.ForceStyle,
-		v.VideoCodecParams, v.EnableWebVTT)
+	return fmt.Sprintf("all=%v, key=%vB, organization=%v, base=%v, lang=%v, webvtt=%v",
+		v.All, len(v.SecretKey), v.Organization, v.BaseURL, v.Language, v.EnableWebVTT)
 }
 
 func (v *TranscriptConfig) Load(ctx context.Context) error {
@@ -1286,21 +886,13 @@ type TranscriptSegment struct {
 	AudioFile *TsFile `json:"audio,omitempty"`
 	// The asr result, by AI service.
 	AsrText *TranscriptAsrResult `json:"asr,omitempty"`
-	// The overlay video file.
-	OverlayFile *TsFile `json:"overlay,omitempty"`
-	// The starttime for live stream to adjust the srt.
+	// The starttime for live stream to adjust the webvtt timestamps.
 	StreamStarttime time.Duration `json:"sst,omitempty"`
-	// The generated SRT file from ASR result.
-	SrtFile string `json:"srt,omitempty"`
-	// Whether user clear the ASR text of this segment.
-	UserClearASR bool `json:"uca,omitempty"`
 
 	// The cost to transcode the TS file to audio file.
 	CostExtractAudio time.Duration `json:"eac,omitempty"`
 	// The cost to do ASR, converting speech to text.
 	CostASR time.Duration `json:"asrc,omitempty"`
-	// The cost to overlay the ASR text onto the video.
-	CostOverlay time.Duration `json:"olc,omitempty"`
 }
 
 func (v TranscriptSegment) String() string {
@@ -1319,13 +911,7 @@ func (v TranscriptSegment) String() string {
 		sb.WriteString(fmt.Sprintf("asr=%v, ", v.AsrText.String()))
 		sb.WriteString(fmt.Sprintf("asrc=%v, ", v.CostASR))
 	}
-	sb.WriteString(fmt.Sprintf("srt=%v, ", v.SrtFile))
-	sb.WriteString(fmt.Sprintf("uca=%v, ", v.UserClearASR))
 	sb.WriteString(fmt.Sprintf("sst=%v, ", v.StreamStarttime))
-	if v.OverlayFile != nil {
-		sb.WriteString(fmt.Sprintf("overlay=%v, ", v.OverlayFile.String()))
-		sb.WriteString(fmt.Sprintf("olc=%v, ", v.CostOverlay))
-	}
 	return sb.String()
 }
 
@@ -1341,20 +927,6 @@ func (v *TranscriptSegment) Dispose() error {
 	if v.AudioFile != nil {
 		if _, err := os.Stat(v.AudioFile.File); err == nil {
 			os.Remove(v.AudioFile.File)
-		}
-	}
-
-	// Remove the SRT file.
-	if v.SrtFile != "" {
-		if _, err := os.Stat(v.SrtFile); err == nil {
-			os.Remove(v.SrtFile)
-		}
-	}
-
-	// Remove the overlay video file.
-	if v.OverlayFile != nil {
-		if _, err := os.Stat(v.OverlayFile.File); err == nil {
-			os.Remove(v.OverlayFile.File)
 		}
 	}
 
@@ -1400,20 +972,6 @@ func (v *TranscriptQueue) first() *TranscriptSegment {
 	}
 
 	return v.Segments[0]
-}
-
-func (v *TranscriptQueue) clearSubtitle(tsid string) error {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	for _, segment := range v.Segments {
-		if segment.AudioFile.TsID == tsid {
-			segment.UserClearASR = true
-			return nil
-		}
-	}
-
-	return errors.Errorf("no tsid %v", tsid)
 }
 
 func (v *TranscriptQueue) dequeue(segment *TranscriptSegment) {
@@ -1463,12 +1021,9 @@ type TranscriptTask struct {
 	// MP4 file is generated, the segment is added to the ASR queue, which then requests the
 	// AI server to convert the audio from the MP4 file into text.
 	AsrQueue *TranscriptQueue `json:"asr,omitempty"`
-	// The fix queue for the current task. It allows users to manually fix and correct the
-	// ASR-generated text. The overlay task won't start util user fix the ASR text.
-	FixQueue *TranscriptQueue `json:"fix,omitempty"`
-	// The overlay queue for the current task. It involves drawing ASR (Automatic Speech
-	// Recognition) text onto the video and encoding it into a new video file.
-	OverlayQueue *TranscriptQueue `json:"overlay,omitempty"`
+	// The webvtt queue for the current task. Holds a sliding window of ASR-completed
+	// segments ready to serve as WebVTT subtitle HLS.
+	WebVttQueue *TranscriptQueue `json:"webvtt,omitempty"`
 
 	// The previous ASR (Automatic Speech Recognition) text, which serves as a prompt for
 	// generating the next one. AI services may use this previous ASR text as a prompt to
@@ -1500,10 +1055,8 @@ func NewTranscriptTask() *TranscriptTask {
 		LiveQueue: NewTranscriptQueue(),
 		// The asr queue for current task.
 		AsrQueue: NewTranscriptQueue(),
-		// The fix queue for current task.
-		FixQueue: NewTranscriptQueue(),
-		// The overlay queue for current task.
-		OverlayQueue: NewTranscriptQueue(),
+		// The webvtt queue for current task.
+		WebVttQueue: NewTranscriptQueue(),
 		// Create persistence signal.
 		signalPersistence: make(chan bool, 1),
 		// Create new stream signal.
@@ -1512,9 +1065,9 @@ func NewTranscriptTask() *TranscriptTask {
 }
 
 func (v *TranscriptTask) String() string {
-	return fmt.Sprintf("uuid=%v, live=%v, asr=%v, fix=%v, pat=%v, overlay=%v, config is %v",
-		v.UUID, v.LiveQueue.String(), v.AsrQueue.String(), v.FixQueue.String(), v.PreviousAsrText,
-		v.OverlayQueue.String(), v.config.String(),
+	return fmt.Sprintf("uuid=%v, live=%v, asr=%v, webvtt=%v, pat=%v, config is %v",
+		v.UUID, v.LiveQueue.String(), v.AsrQueue.String(), v.WebVttQueue.String(), v.PreviousAsrText,
+		v.config.String(),
 	)
 }
 
@@ -1718,7 +1271,7 @@ func (v *TranscriptTask) DriveLiveQueue(ctx context.Context) error {
 	}
 
 	// Wait if ASR queue is full.
-	if v.AsrQueue.count() >= maxOverlaySegments+1 {
+	if v.AsrQueue.count() >= maxWebVttSegments+1 {
 		return nil
 	}
 
@@ -1792,8 +1345,8 @@ func (v *TranscriptTask) DriveAsrQueue(ctx context.Context) error {
 		return nil
 	}
 
-	// Wait if Fix queue is full.
-	if v.FixQueue.count() >= maxOverlaySegments+1 {
+	// Wait if WebVTT queue is full.
+	if v.WebVttQueue.count() >= maxWebVttSegments+1 {
 		return nil
 	}
 
@@ -1842,40 +1395,7 @@ func (v *TranscriptTask) DriveAsrQueue(ctx context.Context) error {
 		segment.StreamStarttime = time.Duration(stv * float64(time.Second))
 	}
 
-	// Build SRT file from ASR result.
-	var srt strings.Builder
-	for index, srtSegment := range resp.Segments {
-		// Write the index.
-		srt.WriteString(fmt.Sprintf("%v\n", index))
-
-		// Write the start and end time.
-		s := segment.StreamStarttime + time.Duration(srtSegment.Start*float64(time.Second))
-		e := segment.StreamStarttime + time.Duration(srtSegment.End*float64(time.Second))
-		srt.WriteString(fmt.Sprintf("%02d:%02d:%02d,%03d --> ",
-			int(s.Hours()), int(s.Minutes())%60, int(s.Seconds())%60, int(s.Milliseconds())%1000))
-		srt.WriteString(fmt.Sprintf("%02d:%02d:%02d,%03d\n",
-			int(e.Hours()), int(e.Minutes())%60, int(e.Seconds())%60, int(e.Milliseconds())%1000))
-
-		// Write the subtitle text.
-		srt.WriteString(fmt.Sprintf("%v\n", srtSegment.Text))
-
-		// Insert a new line.
-		srt.WriteString("\n")
-	}
-
-	fileName := path.Join("transcript", fmt.Sprintf("%v.srt", segment.AudioFile.TsID))
-	if f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-		return errors.Wrapf(err, "open file %v", fileName)
-	} else {
-		defer f.Close()
-		if _, err = f.Write([]byte(srt.String())); err != nil {
-			return errors.Wrapf(err, "write file %v with %v", fileName, srt.String())
-		}
-	}
-
-	segment.SrtFile = fileName
-
-	// Dequeue the segment from asr queue and attach to correct queue.
+	// Dequeue the segment from asr queue and attach to webvtt queue.
 	func() {
 		v.lock.Lock()
 		defer v.lock.Unlock()
@@ -1901,7 +1421,7 @@ func (v *TranscriptTask) DriveAsrQueue(ctx context.Context) error {
 	func() {
 		v.lock.Lock()
 		defer v.lock.Unlock()
-		v.FixQueue.enqueue(segment)
+		v.WebVttQueue.enqueue(segment)
 	}()
 	logger.Tf(ctx, "transcript: asr audio=%v, prompt=%v, text=%v, cost=%v",
 		segment.AudioFile.File, prompt, resp.Text, segment.CostASR)
@@ -1911,125 +1431,14 @@ func (v *TranscriptTask) DriveAsrQueue(ctx context.Context) error {
 	return nil
 }
 
-func (v *TranscriptTask) DriveFixQueue(ctx context.Context) error {
+func (v *TranscriptTask) DriveWebVttQueue(ctx context.Context) error {
 	// Ignore if not enabled.
 	if !v.config.All {
 		return nil
 	}
 
 	// Ignore if not enough segments.
-	if v.FixQueue.count() <= 2 {
-		return nil
-	}
-
-	segment := v.FixQueue.first()
-	starttime := time.Now()
-
-	// Remove segment if file not exists.
-	if _, err := os.Stat(segment.TsFile.File); err != nil && os.IsNotExist(err) {
-		func() {
-			v.lock.Lock()
-			defer v.lock.Unlock()
-			v.FixQueue.dequeue(segment)
-		}()
-		segment.Dispose()
-		logger.Tf(ctx, "transcript: remove not exist fix segment %v", segment.String())
-		return nil
-	}
-
-	// Wait if Overlay queue is full.
-	if v.OverlayQueue.count() >= maxOverlaySegments+1 {
-		return nil
-	}
-
-	// Overlay the ASR text onto the video.
-	overlayFile := &TsFile{
-		TsID:     fmt.Sprintf("%v-overlay-%v", segment.TsFile.SeqNo, uuid.NewString()),
-		URL:      segment.TsFile.URL,
-		SeqNo:    segment.TsFile.SeqNo,
-		Duration: segment.TsFile.Duration,
-	}
-	overlayFile.File = path.Join("transcript", fmt.Sprintf("%v.ts", overlayFile.TsID))
-
-	var processCmd string
-	if v.config.EnableOverlay {
-		args := []string{
-			"-i", segment.TsFile.File,
-		}
-		// Ignore subtitle if user clear it.
-		if !segment.UserClearASR {
-			if stats, err := os.Stat(segment.SrtFile); err == nil && stats.Size() > 0 {
-				// Note that the Alignment=2 means bottom center.
-				forceStyle := "Alignment=2,MarginV=20"
-				if v.config.ForceStyle != "" {
-					forceStyle = v.config.ForceStyle
-				}
-
-				args = append(args, []string{
-					"-vf", fmt.Sprintf("subtitles=%v:force_style='%v'", segment.SrtFile, forceStyle),
-				}...)
-			}
-		}
-		// Generate the video parameters.
-		videoCodecParams := "-c:v libx264 -profile:v main -preset:v medium -tune zerolatency -bf 0"
-		if v.config.VideoCodecParams != "" {
-			videoCodecParams = v.config.VideoCodecParams
-		}
-		args = append(args, strings.Fields(videoCodecParams)...)
-		// Generate other parameters for FFmpeg.
-		args = append(args, []string{
-			"-c:a", "aac",
-			"-copyts", // To keep the pts not changed.
-			"-y", overlayFile.File,
-		}...)
-		if err := exec.CommandContext(ctx, "ffmpeg", args...).Run(); err != nil {
-			return errors.Wrapf(err, "transcode %v", args)
-		}
-
-		processCmd = fmt.Sprintf("ffmpeg %v", strings.Join(args, " "))
-	} else {
-		args := []string{segment.TsFile.File, overlayFile.File}
-		if err := exec.CommandContext(ctx, "cp", args...).Run(); err != nil {
-			return errors.Wrapf(err, "copy %v", args)
-		}
-
-		processCmd = fmt.Sprintf("cp %v", strings.Join(args, " "))
-	}
-
-	// Update the size of audio file.
-	stats, err := os.Stat(overlayFile.File)
-	if err != nil {
-		// TODO: FIXME: Cleanup the failed file.
-		return errors.Wrapf(err, "stat file %v", overlayFile.File)
-	}
-	overlayFile.Size = uint64(stats.Size())
-
-	// Dequeue the segment from live queue and attach to asr queue.
-	func() {
-		v.lock.Lock()
-		defer v.lock.Unlock()
-
-		v.FixQueue.dequeue(segment)
-		segment.OverlayFile = overlayFile
-		segment.CostOverlay = time.Since(starttime)
-		v.OverlayQueue.enqueue(segment)
-	}()
-	logger.Tf(ctx, "transcript: overlay %v to %v, size=%v, cmd=<%v>, cost=%v",
-		segment.TsFile.File, overlayFile.File, overlayFile.Size, processCmd, segment.CostOverlay)
-
-	// Notify the main loop to persistent current task.
-	v.notifyPersistence(ctx)
-	return nil
-}
-
-func (v *TranscriptTask) DriveOverlayQueue(ctx context.Context) error {
-	// Ignore if not enabled.
-	if !v.config.All {
-		return nil
-	}
-
-	// Ignore if not enough segments.
-	if v.OverlayQueue.count() <= maxOverlaySegments {
+	if v.WebVttQueue.count() <= maxWebVttSegments {
 		select {
 		case <-ctx.Done():
 		case <-time.After(1 * time.Second):
@@ -2038,11 +1447,11 @@ func (v *TranscriptTask) DriveOverlayQueue(ctx context.Context) error {
 	}
 
 	// Cleanup the old segments.
-	segment := v.OverlayQueue.first()
+	segment := v.WebVttQueue.first()
 	func() {
 		v.lock.Lock()
 		defer v.lock.Unlock()
-		v.OverlayQueue.dequeue(segment)
+		v.WebVttQueue.dequeue(segment)
 	}()
 	defer segment.Dispose()
 
@@ -2061,13 +1470,6 @@ func (v *TranscriptTask) restart(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (v *TranscriptTask) clearSubtitle(ctx context.Context, tsid string) error {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	return v.FixQueue.clearSubtitle(tsid)
 }
 
 func (v *TranscriptTask) reset(ctx context.Context) error {
@@ -2090,8 +1492,7 @@ func (v *TranscriptTask) reset(ctx context.Context) error {
 		// Reset all queues.
 		v.LiveQueue.reset(ctx)
 		v.AsrQueue.reset(ctx)
-		v.FixQueue.reset(ctx)
-		v.OverlayQueue.reset(ctx)
+		v.WebVttQueue.reset(ctx)
 
 		// Reset all states.
 		v.Input = ""
@@ -2157,18 +1558,11 @@ func (v *TranscriptTask) asrSegments() []*TranscriptSegment {
 	return v.AsrQueue.Segments[:]
 }
 
-func (v *TranscriptTask) fixSegments() []*TranscriptSegment {
+func (v *TranscriptTask) webvttSegments() []*TranscriptSegment {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	return v.FixQueue.Segments[:]
-}
-
-func (v *TranscriptTask) overlaySegments() []*TranscriptSegment {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	return v.OverlayQueue.Segments[:]
+	return v.WebVttQueue.Segments[:]
 }
 
 func (v *TranscriptTask) notifyPersistence(ctx context.Context) {
